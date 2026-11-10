@@ -1,7 +1,12 @@
 """Tariff engine: recompute a bill from rules-as-data.
 
-Pure Python, no I/O besides optional JSON loading, so it is easy to test.
-Money is handled with Decimal to avoid float rounding drift.
+Supports: slab or flat energy rates, fixed charge per kW, any number of per-kWh
+charges (fuel adjustment, surcharges; negative rates allowed), tax on energy
+only or on everything, and the Gruha Jyothi style subsidy (a second bill on the
+eligible units that is subtracted from the gross bill).
+
+Money uses Decimal. Every line is rounded to 2 places before summing, which is
+how the printed bill behaves.
 """
 from __future__ import annotations
 
@@ -29,14 +34,22 @@ class Slab:
 
 
 @dataclass
+class PerUnitCharge:
+    name: str
+    type: str
+    rate: float  # may be negative
+
+
+@dataclass
 class Tariff:
     utility: str
     category: str
     version: str
     fixed_charge_per_kw: float
     slabs: list[Slab]
-    fuel_adjustment_per_kwh: float = 0.0
+    per_unit_charges: list[PerUnitCharge] = field(default_factory=list)
     tax_percent: float = 0.0
+    tax_base: str = "energy"  # "energy" or "all"
 
     @classmethod
     def from_dict(cls, d: dict) -> "Tariff":
@@ -46,8 +59,9 @@ class Tariff:
             version=d.get("version", "n/a"),
             fixed_charge_per_kw=d.get("fixed_charge_per_kw", 0.0),
             slabs=[Slab(**s) for s in d["slabs"]],
-            fuel_adjustment_per_kwh=d.get("fuel_adjustment_per_kwh", 0.0),
+            per_unit_charges=[PerUnitCharge(**c) for c in d.get("per_unit_charges", [])],
             tax_percent=d.get("tax_percent", 0.0),
+            tax_base=d.get("tax_base", "energy"),
         )
 
     @classmethod
@@ -74,19 +88,24 @@ class BillResult:
         return {
             "units": self.units,
             "total": float(self.total),
-            "line_items": [
-                {**li.__dict__, "amount": float(li.amount)} for li in self.line_items
-            ],
+            "line_items": [{**li.__dict__, "amount": float(li.amount)} for li in self.line_items],
         }
 
 
 def compute_bill(tariff: Tariff, units: float, sanctioned_load_kw: float) -> BillResult:
-    """Telescopic slabs: each slab's rate applies only to units inside that slab."""
+    """Gross bill for `units` consumed (no subsidy)."""
     if units < 0:
         raise ValueError("units must be >= 0")
 
     result = BillResult(units=units)
-    subtotal = Decimal("0")
+    energy_total = Decimal("0")
+    other_total = Decimal("0")
+
+    fixed = _money(_d(tariff.fixed_charge_per_kw) * _d(sanctioned_load_kw))
+    result.line_items.append(
+        LineItem("fixed", "Fixed charges", sanctioned_load_kw, tariff.fixed_charge_per_kw, fixed)
+    )
+    other_total += fixed
 
     for slab in tariff.slabs:
         upper = slab.to_unit if slab.to_unit is not None else float("inf")
@@ -94,27 +113,44 @@ def compute_bill(tariff: Tariff, units: float, sanctioned_load_kw: float) -> Bil
         if in_slab <= 0:
             continue
         amt = _money(_d(in_slab) * _d(slab.rate))
-        label = f"{slab.from_unit:g}-{'' if slab.to_unit is None else format(slab.to_unit, 'g')}"
-        result.line_items.append(LineItem("energy", f"Energy slab {label}", in_slab, slab.rate, amt))
-        subtotal += amt
+        result.line_items.append(LineItem("energy", "Energy charges", in_slab, slab.rate, amt))
+        energy_total += amt
 
-    fixed = _money(_d(tariff.fixed_charge_per_kw) * _d(sanctioned_load_kw))
+    for c in tariff.per_unit_charges:
+        amt = _money(_d(c.rate) * _d(units))
+        result.line_items.append(LineItem(c.type, c.name, units, c.rate, amt))
+        other_total += amt
+
+    base = energy_total if tariff.tax_base == "energy" else energy_total + other_total
+    tax = _money(base * _d(tariff.tax_percent) / Decimal(100))
     result.line_items.append(
-        LineItem("fixed", "Fixed charge", sanctioned_load_kw, tariff.fixed_charge_per_kw, fixed)
+        LineItem("tax", f"Tax @ {tariff.tax_percent:g}% on {tariff.tax_base}", None, tariff.tax_percent, tax)
     )
-    subtotal += fixed
 
-    fuel = _money(_d(tariff.fuel_adjustment_per_kwh) * _d(units))
-    result.line_items.append(
-        LineItem("fuel_adj", "Fuel adjustment charge", units, tariff.fuel_adjustment_per_kwh, fuel)
-    )
-    subtotal += fuel
-
-    tax = _money(subtotal * _d(tariff.tax_percent) / Decimal(100))
-    result.line_items.append(LineItem("tax", f"Tax @ {tariff.tax_percent:g}%", None, tariff.tax_percent, tax))
-
-    result.total = _money(subtotal + tax)
+    result.total = _money(energy_total + other_total + tax)
     return result
+
+
+@dataclass
+class NetBill:
+    gross: BillResult
+    subsidy: BillResult | None
+    net: Decimal
+
+
+def compute_net_bill(
+    tariff: Tariff, units: float, sanctioned_load_kw: float, subsidy_units: float = 0.0
+) -> NetBill:
+    """Gross bill minus the subsidy bill (Gruha Jyothi style).
+
+    The subsidy is itself a full bill (including the fixed charge) computed on the
+    eligible units, capped at the units actually consumed.
+    """
+    gross = compute_bill(tariff, units, sanctioned_load_kw)
+    if subsidy_units <= 0:
+        return NetBill(gross, None, gross.total)
+    sub = compute_bill(tariff, min(subsidy_units, units), sanctioned_load_kw)
+    return NetBill(gross, sub, _money(gross.total - sub.total))
 
 
 @dataclass
@@ -131,15 +167,19 @@ def verify_bill(
     units: float,
     sanctioned_load_kw: float,
     billed_amount: float,
+    subsidy_units: float = 0.0,
     tolerance_inr: float = 5.0,
     tolerance_pct: float = 1.0,
 ) -> Verification:
-    """Compare billed vs recomputed. Flag only if the gap exceeds BOTH tolerances
-    (absolute and percentage), which avoids noise from rounding and minor rebates."""
-    res = compute_bill(tariff, units, sanctioned_load_kw)
+    """Compare the billed current demand with the recomputed amount.
+
+    Flags only if the gap exceeds BOTH the rupee and percentage tolerances.
+    `billed_amount` should be the current demand (before true-ups and arrears).
+    """
+    res = compute_net_bill(tariff, units, sanctioned_load_kw, subsidy_units).net
     billed = _money(_d(billed_amount))
-    variance = _money(billed - res.total)
-    pct = abs(variance) / res.total * 100 if res.total else Decimal(0)
+    variance = _money(billed - res)
+    pct = abs(variance) / res * 100 if res else (Decimal(0) if variance == 0 else Decimal(100))
     flagged = abs(variance) > _d(tolerance_inr) and pct > _d(tolerance_pct)
     if not flagged:
         msg = "Bill matches the tariff within tolerance."
@@ -147,4 +187,4 @@ def verify_bill(
         msg = f"Possible overcharge of Rs {variance} versus the tariff calculation."
     else:
         msg = f"Billed amount is Rs {abs(variance)} lower than the tariff calculation."
-    return Verification(res.total, billed, variance, flagged, msg)
+    return Verification(res, billed, variance, flagged, msg)

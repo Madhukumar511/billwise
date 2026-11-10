@@ -1,14 +1,16 @@
 {
-  "utility": "SAMPLE-DISCOM",
+  "utility": "BESCOM",
   "category": "LT-1 Domestic",
-  "version": "2026-01",
-  "fixed_charge_per_kw": 50.0,
+  "version": "Read from bill dated 12/09/2026",
+  "fixed_charge_per_kw": 150.0,
   "slabs": [
-    {"from_unit": 0,   "to_unit": 100,  "rate": 4.15},
-    {"from_unit": 100, "to_unit": 200,  "rate": 5.60},
-    {"from_unit": 200, "to_unit": null, "rate": 7.15}
+    {"from_unit": 0, "to_unit": null, "rate": 5.80}
   ],
-  "fuel_adjustment_per_kwh": 0.30,
+  "per_unit_charges": [
+    {"name": "FPPCA charges", "type": "fuel_adj", "rate": -0.23},
+    {"name": "P&G surcharge (GoK portion)", "type": "surcharge", "rate": 0.35}
+  ],
   "tax_percent": 9.0,
-  "_note": "PLACEHOLDER VALUES. Replace with your utility's current tariff order."
+  "tax_base": "energy",
+  "_note": "Rates read from a real bill. FPPCA changes periodically, so confirm against the current KERC/BESCOM tariff order."
 }

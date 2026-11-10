@@ -48,13 +48,14 @@ async def upload_bill(premises_id: int, file: UploadFile = File(...), db: Sessio
 
 
 @router.post("/bills/{bill_id}/verify")
-def verify(bill_id: int, units_kwh: float, amount_billed: float, db: Session = Depends(get_db)):
+def verify(bill_id: int, units_kwh: float, amount_billed: float, subsidy_units: float = 0.0,
+           db: Session = Depends(get_db)):
     """Manual-entry path: verify a bill without OCR. Useful while OCR is being built."""
     bill = db.get(Bill, bill_id)
     if not bill:
         raise HTTPException(404, "Bill not found")
     tariff = Tariff.from_file(TARIFF_FILE)
-    v = verify_bill(tariff, units_kwh, bill.premises.sanctioned_load_kw, amount_billed)
+    v = verify_bill(tariff, units_kwh, bill.premises.sanctioned_load_kw, amount_billed, subsidy_units)
     bill.units_kwh, bill.amount_billed = units_kwh, amount_billed
     bill.amount_recomputed, bill.variance = float(v.recomputed), float(v.variance)
     bill.status = "done"
