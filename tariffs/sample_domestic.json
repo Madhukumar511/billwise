@@ -1,0 +1,14 @@
+{
+  "utility": "SAMPLE-DISCOM",
+  "category": "LT-1 Domestic",
+  "version": "2026-01",
+  "fixed_charge_per_kw": 50.0,
+  "slabs": [
+    {"from_unit": 0,   "to_unit": 100,  "rate": 4.15},
+    {"from_unit": 100, "to_unit": 200,  "rate": 5.60},
+    {"from_unit": 200, "to_unit": null, "rate": 7.15}
+  ],
+  "fuel_adjustment_per_kwh": 0.30,
+  "tax_percent": 9.0,
+  "_note": "PLACEHOLDER VALUES. Replace with your utility's current tariff order."
+}
