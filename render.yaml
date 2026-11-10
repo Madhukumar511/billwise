@@ -1,0 +1,20 @@
+# Render Blueprint: creates the web service and its PostgreSQL database together.
+databases:
+  - name: billwise-db
+    plan: free
+    postgresMajorVersion: "16"
+    ipAllowList: []
+
+services:
+  - type: web
+    name: billwise
+    runtime: docker
+    plan: free
+    healthCheckPath: /health
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: billwise-db
+          property: connectionString
+      - key: STORE_UPLOADS
+        value: "false"

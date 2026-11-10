@@ -1,3 +1,4 @@
+import re
 import uuid
 from pathlib import Path
 
@@ -7,6 +8,8 @@ from sqlalchemy.orm import Session
 from ..config import settings
 from ..db import get_db
 from ..models import Bill, Premises
+from ..services.coach import build_coach
+from ..services.ocr import ocr_image, parse_bill_text
 from ..services.tariff_engine import Tariff, verify_bill
 
 router = APIRouter(prefix="/api")
@@ -35,30 +38,79 @@ async def upload_bill(premises_id: int, file: UploadFile = File(...), db: Sessio
     if len(data) > settings.max_upload_mb * 1024 * 1024:
         raise HTTPException(413, f"File exceeds {settings.max_upload_mb} MB")
 
-    Path(settings.upload_dir).mkdir(parents=True, exist_ok=True)
-    ext = {"application/pdf": ".pdf", "image/jpeg": ".jpg", "image/png": ".png"}[file.content_type]
-    path = Path(settings.upload_dir) / f"{uuid.uuid4().hex}{ext}"  # never trust the client filename
-    path.write_bytes(data)
+    if settings.store_uploads:
+        Path(settings.upload_dir).mkdir(parents=True, exist_ok=True)
+        ext = {"application/pdf": ".pdf", "image/jpeg": ".jpg", "image/png": ".png"}[file.content_type]
+        path = Path(settings.upload_dir) / f"{uuid.uuid4().hex}{ext}"  # never trust the client filename
+        path.write_bytes(data)
+        stored = str(path)
+    else:
+        stored = "not stored"  # privacy: keep the record, drop the photo
 
-    bill = Bill(premises_id=premises_id, file_path=str(path), status="uploaded")
+    bill = Bill(premises_id=premises_id, file_path=stored, status="uploaded")
     db.add(bill)
     db.commit()
     # TODO (Week 2): enqueue OCR + extraction job here
     return {"bill_id": bill.id, "status": bill.status}
 
 
+def _parse_fppca(text: str | None):
+    """'236.15@0.02,98.85@0.32' -> [(236.15, 0.02), (98.85, 0.32)]"""
+    if not text or not text.strip():
+        return None
+    segs = []
+    for part in re.split(r"[,\s;]+", text.strip()):
+        if not part:
+            continue
+        try:
+            u, r = part.split("@")
+            segs.append((float(u), float(r)))
+        except ValueError:
+            raise HTTPException(422, "FPPCA must look like 236.15@0.02,98.85@0.32")
+    return segs or None
+
+
 @router.post("/bills/{bill_id}/verify")
 def verify(bill_id: int, units_kwh: float, amount_billed: float, subsidy_units: float = 0.0,
+           billing_days: int | None = None, fppca: str | None = None,
+           md_penalty: float | None = None, recorded_md_kw: float | None = None,
            db: Session = Depends(get_db)):
-    """Manual-entry path: verify a bill without OCR. Useful while OCR is being built."""
+    """Manual-entry path: verify a bill without OCR.
+
+    amount_billed = the "Bill Amount (1-2)" line (before penalties and arrears).
+    """
     bill = db.get(Bill, bill_id)
     if not bill:
         raise HTTPException(404, "Bill not found")
     tariff = Tariff.from_file(TARIFF_FILE)
-    v = verify_bill(tariff, units_kwh, bill.premises.sanctioned_load_kw, amount_billed, subsidy_units)
+    segs = _parse_fppca(fppca)
+    v = verify_bill(tariff, units_kwh, bill.premises.sanctioned_load_kw, amount_billed,
+                    subsidy_units, billing_days=billing_days, fppca_segments=segs)
     bill.units_kwh, bill.amount_billed = units_kwh, amount_billed
     bill.amount_recomputed, bill.variance = float(v.recomputed), float(v.variance)
     bill.status = "done"
     db.commit()
+    notes = []
+    if billing_days and billing_days > 45 and not segs:
+        notes.append("This looks like a multi-month bill. Enter the FPPCA lines "
+                     "(units@rate) in the advanced box for an accurate check.")
+    coach = build_coach(tariff, units_kwh, bill.premises.sanctioned_load_kw, subsidy_units,
+                        billing_days, segs, v.flagged, float(v.variance), md_penalty, recorded_md_kw)
     return {"recomputed": float(v.recomputed), "billed": float(v.billed),
-            "variance": float(v.variance), "flagged": v.flagged, "message": v.message}
+            "variance": float(v.variance), "flagged": v.flagged, "message": v.message,
+            "notes": notes, "coach": coach}
+
+
+@router.post("/scan")
+def scan(file: UploadFile = File(...)):
+    """Read a bill photo with OCR and suggest values for the form. Nothing is saved."""
+    if file.content_type not in {"image/jpeg", "image/png"}:
+        raise HTTPException(415, "Photo scanning supports JPG or PNG. For PDFs, type the values in.")
+    data = file.file.read()
+    if len(data) > settings.max_upload_mb * 1024 * 1024:
+        raise HTTPException(413, f"File exceeds {settings.max_upload_mb} MB")
+    try:
+        text = ocr_image(data)
+    except Exception as e:  # e.g. Tesseract not installed
+        raise HTTPException(503, f"OCR is not available: {e}")
+    return parse_bill_text(text)

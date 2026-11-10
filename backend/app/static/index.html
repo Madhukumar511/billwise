@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>BillWise</title>
+<style>
+  body { font-family: system-ui, sans-serif; background: #f4f6f8; margin: 0; color: #1c2430; }
+  main { max-width: 480px; margin: 0 auto; padding: 24px 16px 48px; }
+  h1 { margin: 0 0 4px; }
+  p.sub { margin: 0 0 20px; color: #5b6675; }
+  form, .card { background: #fff; border-radius: 12px; padding: 18px; box-shadow: 0 1px 4px rgba(0,0,0,.08); }
+  label { display: block; margin: 12px 0 4px; font-weight: 600; font-size: 14px; }
+  small { color: #6b7684; font-weight: 400; }
+  input { width: 100%; box-sizing: border-box; padding: 10px; border: 1px solid #c9d1da; border-radius: 8px; font-size: 16px; }
+  details { margin-top: 16px; border-top: 1px solid #e3e8ee; padding-top: 10px; }
+  summary { cursor: pointer; font-weight: 600; font-size: 14px; }
+  button { margin-top: 18px; width: 100%; padding: 12px; font-size: 16px; font-weight: 600;
+           background: #0f7b5f; color: #fff; border: 0; border-radius: 8px; cursor: pointer; }
+  button:disabled { opacity: .6; cursor: wait; }
+  .card { margin-top: 18px; }
+  .ok { border-left: 6px solid #0f7b5f; }
+  .bad { border-left: 6px solid #c62828; }
+  .err { border-left: 6px solid #e0a100; }
+  .row { display: flex; justify-content: space-between; padding: 4px 0; }
+  .note { font-size: 14px; color: #5b6675; }
+  .coach h4 { margin: 14px 0 6px; }
+  .coach p { margin: 6px 0; line-height: 1.45; }
+  .tip { background: #f1f8f5; border-radius: 8px; padding: 10px 12px; margin: 8px 0; }
+  .tip b { display: block; margin-bottom: 2px; }
+  .hidden { display: none; }
+</style>
+</head>
+<body>
+<main>
+  <h1>BillWise</h1>
+  <p class="sub">Check if your electricity bill is calculated correctly.</p>
+
+  <form id="f">
+    <label>Bill photo or PDF</label>
+    <input type="file" id="file" accept="image/jpeg,image/png,application/pdf" required>
+    <small id="scanmsg"></small>
+
+    <label>Sanctioned load (kW) <small>"Sanc Load" on the bill</small></label>
+    <input type="number" id="load" step="0.1" value="3" required>
+
+    <label>Units consumed (kWh) <small>"Consumption (Units)"</small></label>
+    <input type="number" id="units" step="0.01" required>
+
+    <label>Bill amount (Rs) <small>"Bill Amount (1-2)", before penalties and arrears</small></label>
+    <input type="number" id="amount" step="0.01" required>
+
+    <label>Subsidised units <small>"Eligible for subsidy", use 0 if none</small></label>
+    <input type="number" id="subsidy" step="0.01" value="0" required>
+
+    <details id="adv">
+      <summary>Multi-month or special bill? (advanced)</summary>
+      <label>Billing days <small>filled from the bill period; only matters if over 45</small></label>
+      <input type="number" id="days" step="1">
+      <label>FPPCA lines <small>units@rate, e.g. 236.15@0.02,98.85@0.32 (leave empty if the bill has one line)</small></label>
+      <input type="text" id="fppca" placeholder="236.15@0.02,98.85@0.32">
+    </details>
+
+    <button id="btn" type="submit">Check my bill</button>
+  </form>
+
+  <div id="result" class="card hidden"></div>
+</main>
+
+<script>
+const $ = id => document.getElementById(id);
+let scanExtra = {};   // penalty and recorded demand read from the photo
+const esc = t => String(t).replace(/[&<>]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;"}[c]));
+
+$("file").addEventListener("change", async () => {
+  const f = $("file").files[0], msg = $("scanmsg");
+  if (!f) return;
+  if (f.type === "application/pdf") { msg.textContent = "PDF: please type the values below."; return; }
+  msg.textContent = "Reading your bill...";
+  try {
+    const fd = new FormData(); fd.append("file", f);
+    const r = await fetch("/api/scan", { method: "POST", body: fd });
+    if (!r.ok) throw new Error((await r.json()).detail);
+    const d = await r.json();
+    if (d.units_kwh != null) $("units").value = d.units_kwh;
+    if (d.sanctioned_load_kw != null) $("load").value = d.sanctioned_load_kw;
+    if (d.amount_billed != null) $("amount").value = d.amount_billed;
+    $("subsidy").value = d.subsidy_units || 0;
+    $("days").value = d.billing_days || "";
+    scanExtra = { md_penalty: d.md_penalty, recorded_md_kw: d.recorded_md_kw };
+    const parts = [];
+    parts.push(d.missing.length
+      ? "Could not read: " + d.missing.join(", ") + ". Please type them in."
+      : "Values filled from your photo. Please check them before continuing.");
+    (d.warnings || []).forEach(w => parts.push(w));
+    if (d.billing_days > 45) {
+      $("adv").open = true;
+      parts.push("This is a " + d.billing_days + "-day (multi-month) bill. Type the FPPCA lines from the bill in the advanced box.");
+    }
+    if (d.md_penalty) parts.push("This bill includes a penalty of Rs " + d.md_penalty.toFixed(2) + " (not part of this check).");
+    msg.textContent = parts.join(" ");
+  } catch (err) { msg.textContent = "Could not read the photo (" + err.message + "). Type the values in."; }
+});
+
+$("f").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const btn = $("btn"), box = $("result");
+  btn.disabled = true; btn.textContent = "Checking...";
+  try {
+    // 1. create premises
+    let r = await fetch(`/api/premises?label=Home&sanctioned_load_kw=${$("load").value}`, { method: "POST" });
+    if (!r.ok) throw new Error("Could not create premises");
+    const premises = await r.json();
+
+    // 2. upload bill
+    const fd = new FormData();
+    fd.append("file", $("file").files[0]);
+    r = await fetch(`/api/premises/${premises.id}/bills`, { method: "POST", body: fd });
+    if (!r.ok) throw new Error((await r.json()).detail || "Upload failed");
+    const bill = await r.json();
+
+    // 3. verify
+    const q = new URLSearchParams({
+      units_kwh: $("units").value,
+      amount_billed: $("amount").value,
+      subsidy_units: $("subsidy").value,
+    });
+    if ($("days").value) q.set("billing_days", $("days").value);
+    if ($("fppca").value.trim()) q.set("fppca", $("fppca").value.trim());
+    if (scanExtra.md_penalty) q.set("md_penalty", scanExtra.md_penalty);
+    if (scanExtra.recorded_md_kw) q.set("recorded_md_kw", scanExtra.recorded_md_kw);
+    r = await fetch(`/api/bills/${bill.bill_id}/verify?${q}`, { method: "POST" });
+    if (!r.ok) throw new Error((await r.json()).detail || "Verification failed");
+    const v = await r.json();
+
+    box.className = "card " + (v.flagged ? "bad" : "ok");
+    box.innerHTML = `
+      <h3>${v.flagged ? "Possible billing error" : "Bill looks correct"}</h3>
+      <div class="row"><span>Billed</span><b>Rs ${v.billed.toFixed(2)}</b></div>
+      <div class="row"><span>Our calculation</span><b>Rs ${v.recomputed.toFixed(2)}</b></div>
+      <div class="row"><span>Difference</span><b>Rs ${v.variance.toFixed(2)}</b></div>
+      <p>${v.message}</p>` + (v.notes || []).map(n => `<p class="note">${esc(n)}</p>`).join("");
+    if (v.coach) {
+      const c = v.coach;
+      box.innerHTML += `<div class="coach"><h4>What this means</h4>` +
+        c.summary.map(t => `<p>${esc(t)}</p>`).join("") +
+        (c.tips.length ? `<h4>How to save</h4>` +
+          c.tips.map(t => `<div class="tip"><b>${esc(t.title)}</b>${esc(t.text)}</div>`).join("") : "") +
+        `</div>`;
+    }
+  } catch (err) {
+    box.className = "card err";
+    box.textContent = err.message;
+  } finally {
+    box.classList.remove("hidden");
+    btn.disabled = false; btn.textContent = "Check my bill";
+  }
+});
+</script>
+</body>
+</html>

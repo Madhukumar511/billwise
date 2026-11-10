@@ -17,6 +17,11 @@ from pathlib import Path
 
 TWO = Decimal("0.01")
 
+# Bills covering more than this many days are treated as multi-month bills.
+# ASSUMPTION inferred from two real BESCOM bills: on such bills the fixed charge is
+# charged for (sanctioned kW x days / 30). Confirm with more bills.
+MULTI_MONTH_DAYS = 45
+
 
 def _d(x) -> Decimal:
     return Decimal(str(x))
@@ -92,8 +97,18 @@ class BillResult:
         }
 
 
-def compute_bill(tariff: Tariff, units: float, sanctioned_load_kw: float) -> BillResult:
-    """Gross bill for `units` consumed (no subsidy)."""
+def compute_bill(
+    tariff: Tariff,
+    units: float,
+    sanctioned_load_kw: float,
+    billing_days: int | None = None,
+    fppca_segments: list[tuple[float, float]] | None = None,
+) -> BillResult:
+    """Gross bill for `units` consumed (no subsidy).
+
+    billing_days: used to prorate the fixed charge on multi-month bills.
+    fppca_segments: [(units, rate), ...] when the bill splits FPPCA over several rates.
+    """
     if units < 0:
         raise ValueError("units must be >= 0")
 
@@ -101,10 +116,17 @@ def compute_bill(tariff: Tariff, units: float, sanctioned_load_kw: float) -> Bil
     energy_total = Decimal("0")
     other_total = Decimal("0")
 
-    fixed = _money(_d(tariff.fixed_charge_per_kw) * _d(sanctioned_load_kw))
-    result.line_items.append(
-        LineItem("fixed", "Fixed charges", sanctioned_load_kw, tariff.fixed_charge_per_kw, fixed)
-    )
+    multi = bool(billing_days and billing_days > MULTI_MONTH_DAYS)
+    base_fixed = _d(tariff.fixed_charge_per_kw) * _d(sanctioned_load_kw)
+    if multi:
+        fixed = _money(base_fixed * Decimal(billing_days) / Decimal(30))
+        billed_kw = float(_d(sanctioned_load_kw) * Decimal(billing_days) / Decimal(30))
+        label = f"Fixed charges ({billing_days} days)"
+    else:
+        fixed = _money(base_fixed)
+        billed_kw = sanctioned_load_kw
+        label = "Fixed charges"
+    result.line_items.append(LineItem("fixed", label, billed_kw, tariff.fixed_charge_per_kw, fixed))
     other_total += fixed
 
     for slab in tariff.slabs:
@@ -117,6 +139,16 @@ def compute_bill(tariff: Tariff, units: float, sanctioned_load_kw: float) -> Bil
         energy_total += amt
 
     for c in tariff.per_unit_charges:
+        if c.type == "fuel_adj" and fppca_segments:
+            seg_total = sum(u for u, _ in fppca_segments)
+            for seg_units, seg_rate in fppca_segments:
+                part = _d(units) * _d(seg_units) / _d(seg_total)  # share of this bill's units
+                amt = _money(part * _d(seg_rate))
+                result.line_items.append(
+                    LineItem(c.type, f"{c.name} @ {seg_rate:g}", float(part), seg_rate, amt)
+                )
+                other_total += amt
+            continue
         amt = _money(_d(c.rate) * _d(units))
         result.line_items.append(LineItem(c.type, c.name, units, c.rate, amt))
         other_total += amt
@@ -139,17 +171,22 @@ class NetBill:
 
 
 def compute_net_bill(
-    tariff: Tariff, units: float, sanctioned_load_kw: float, subsidy_units: float = 0.0
+    tariff: Tariff,
+    units: float,
+    sanctioned_load_kw: float,
+    subsidy_units: float = 0.0,
+    billing_days: int | None = None,
+    fppca_segments: list[tuple[float, float]] | None = None,
 ) -> NetBill:
     """Gross bill minus the subsidy bill (Gruha Jyothi style).
 
     The subsidy is itself a full bill (including the fixed charge) computed on the
     eligible units, capped at the units actually consumed.
     """
-    gross = compute_bill(tariff, units, sanctioned_load_kw)
+    gross = compute_bill(tariff, units, sanctioned_load_kw, billing_days, fppca_segments)
     if subsidy_units <= 0:
         return NetBill(gross, None, gross.total)
-    sub = compute_bill(tariff, min(subsidy_units, units), sanctioned_load_kw)
+    sub = compute_bill(tariff, min(subsidy_units, units), sanctioned_load_kw, billing_days, fppca_segments)
     return NetBill(gross, sub, _money(gross.total - sub.total))
 
 
@@ -170,13 +207,18 @@ def verify_bill(
     subsidy_units: float = 0.0,
     tolerance_inr: float = 5.0,
     tolerance_pct: float = 1.0,
+    billing_days: int | None = None,
+    fppca_segments: list[tuple[float, float]] | None = None,
 ) -> Verification:
     """Compare the billed current demand with the recomputed amount.
 
     Flags only if the gap exceeds BOTH the rupee and percentage tolerances.
-    `billed_amount` should be the current demand (before true-ups and arrears).
+    `billed_amount` should be the "Bill Amount (1-2)" line: before penalties,
+    interest, true-ups and arrears.
     """
-    res = compute_net_bill(tariff, units, sanctioned_load_kw, subsidy_units).net
+    res = compute_net_bill(
+        tariff, units, sanctioned_load_kw, subsidy_units, billing_days, fppca_segments
+    ).net
     billed = _money(_d(billed_amount))
     variance = _money(billed - res)
     pct = abs(variance) / res * 100 if res else (Decimal(0) if variance == 0 else Decimal(100))

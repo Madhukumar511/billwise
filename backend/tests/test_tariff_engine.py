@@ -63,3 +63,34 @@ def test_no_subsidy():
 def test_negative_units_rejected():
     with pytest.raises(ValueError):
         compute_bill(TARIFF, -1, 3)
+
+
+# ---- Bill 2: two-month bill (12/06/2026 - 12/08/2026, 61 days), 2 kW, 335 units,
+# ---- 272.47 subsidised units. Printed: Sub-Total-1 2881.47, Sub-Total-2 2457.47,
+# ---- Bill Amount (1-2) 424.00.
+SEGMENTS = [(236.15, 0.02), (98.85, 0.32)]
+
+
+def test_multi_month_gross_matches_printed():
+    r = compute_bill(TARIFF, 335, 2, billing_days=61, fppca_segments=SEGMENTS)
+    assert _amt(r, "fixed") == Decimal("610.00")  # 2 kW x 61/30 x 150
+    assert _amt(r, "fuel_adj") == Decimal("36.35")  # 4.72 + 31.63
+    assert r.total == Decimal("2881.47")
+
+
+def test_multi_month_net_close_to_printed():
+    nb = compute_net_bill(TARIFF, 335, 2, 272.47, billing_days=61, fppca_segments=SEGMENTS)
+    # printed 424.00; we differ by 0.02 because the bill uses unrounded eligible units
+    assert abs(nb.net - Decimal("424.00")) <= Decimal("0.05")
+
+
+def test_multi_month_verify_passes_and_old_logic_would_not():
+    ok = verify_bill(TARIFF, 335, 2, 424.00, 272.47, billing_days=61, fppca_segments=SEGMENTS)
+    assert not ok.flagged
+    plain = verify_bill(TARIFF, 335, 2, 424.00, 272.47)  # without multi-month handling
+    assert plain.flagged
+
+
+def test_normal_month_not_prorated():
+    r31 = compute_bill(TARIFF, 94, 3, billing_days=31)
+    assert _amt(r31, "fixed") == Decimal("450.00")
