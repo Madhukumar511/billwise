@@ -619,7 +619,7 @@
 
       // Units
       const unitsM = firstMatch([
-        new RegExp("(?:Total\\s*|Net\\s*|Billed\\s*|Actual\\s*)?Consumption\\s*(?:\\(?Units?\\)?|\\(kWh\\)|Units?|kWh)?\\D{0,10}" + QTY_PAT, "i"),
+        new RegExp("(?:Total\\s*|Net\\s*|Billed\\s*|Actual\\s*)?Consumption\\s*(?:[({<\\w]*Units?[)}>\\w]*|\\(kWh\\)|Units?|kWh)?\\D{0,10}" + QTY_PAT, "i"),
         new RegExp("(?:Units?\\s*(?:Consumed|Billed|Recorded)|kWh\\s*Consumed)\\D{0,10}" + QTY_PAT, "i"),
         new RegExp("\\bUnits\\s*:\\s*" + QTY_PAT, "i"),
         new RegExp("Billed\\s*kWh\\D{0,8}" + QTY_PAT, "i")
@@ -653,21 +653,38 @@
 
       // Sanctioned Load
       const loadM = firstMatch([
-        /(?:Sanctioned|Sanc\.?|Connected|Conn\.?|Contract)?\s*Load\s*(\d+(?:\.\d+)?)\s*(?:KW|HP)\b/i,
-        /Load\s*(\d+\.?\d*)\s*KW/i,
+        /(?:Sanctioned|Sanc\.?|Connected|Conn\.?|Contract)?\s*Load\s*(\d+(?:\.\d+)?)\s*(KW|HP)\b/i,
+        /Load\s*(\d+\.?\d*)\s*(KW|HP)\b/i,
         /(\d+\.?\d*)\s*KW\s+\d+\.?\d*\s+\d+\.\d{2}/i,
         /(\d+(?:\.\d+)?)\s*KW\b/i
       ], text);
-      if (loadM) out.sanctioned_load_kw = num(loadM[1]);
+      if (loadM) {
+        let val = num(loadM[1]);
+        if (loadM[2] && loadM[2].toUpperCase() === 'HP') {
+          val = Math.round(val * 0.746 * 100) / 100;
+        } else if (val > 10 && val < 99 && (val % 10 !== 0)) {
+          val = Math.round((val / 10.0) * 100) / 100;
+        }
+        out.sanctioned_load_kw = val;
+      } else {
+        const hpM = firstMatch([/(\d+(?:\.\d+)?)\s*HP\b/i], text);
+        if (hpM) out.sanctioned_load_kw = Math.round(parseFloat(hpM[1]) * 0.746 * 100) / 100;
+      }
 
       // Amount billed
       const amtM = firstMatch([
         new RegExp("Am\\w{2,4}\\s*\\(\\s*\\w\\s*-\\s*\\w\\s*\\)\\s*" + MONEY_PAT, "i"),
-        new RegExp("(?:Cur\\.?\\s*Demand|Current\\s*Demand|Cur\\.?\\s*Dem)\\s*(?:Payable)?\\D{0,8}" + MONEY_PAT, "i"),
-        new RegExp("(?:Net\\s*Amount|Net\\s*Payable|Bill\\s*Amount|Amount\\s*Payable|Total\\s*Payable)\\D{0,8}" + MONEY_PAT, "i")
+        new RegExp("(?:[CG]ur\\.?\\s*Demand|Current\\s*Demand|Cur\\.?\\s*Dem)\\s*(?:Payable)?\\D{0,8}" + MONEY_PAT, "i"),
+        new RegExp("(?:Net\\s*Amount|Net\\s*Payable|Bill\\s*Amount|Amount\\s*Payable|Total\\s*Payable)\\D{0,8}" + MONEY_PAT, "i"),
+        new RegExp("(?:[CG]ur\\.?\\s*Demand|Current\\s*Demand|Cur\\.?\\s*Dem)\\s*(?:Payable)?\\D{0,8}" + QTY_PAT, "i")
       ], text);
       if (amtM) {
-        out.amount_billed = num(amtM[1]);
+        const rawAmt = amtM[1];
+        let val = num(rawAmt);
+        if (val > 1000 && String(Math.round(val)).endsWith('00') && !rawAmt.includes('.') && !rawAmt.includes(',')) {
+          val = Math.round((val / 100.0) * 100) / 100;
+        }
+        out.amount_billed = val;
       } else {
         const st1 = firstMatch([new RegExp("Sub-?\\s*Total-?\\s*1\\D{0,10}" + MONEY_PAT, "i")], text);
         const st2 = firstMatch([new RegExp("Sub-?\\s*Total-?\\s*2\\D{0,10}" + MONEY_PAT, "i")], text);
@@ -689,12 +706,15 @@
       if (pen && num(pen[1]) > 0) out.md_penalty = num(pen[1]);
 
       // Subsidy units
-      const subM = firstMatch([new RegExp("Eligible\\s*\\w{2,4}\\s*subsid\\w*\\D{0,4}" + QTY_PAT, "i")], text);
+      const subM = firstMatch([
+        new RegExp("Eligib\\w*\\s*(?:for\\s*)?subsid\\w*\\D{0,4}" + QTY_PAT, "i"),
+        new RegExp("Eligible\\s*\\w{2,4}\\s*subsid\\w*\\D{0,4}" + QTY_PAT, "i")
+      ], text);
       if (subM) {
         out.subsidy_units = num(subM[1]);
       } else {
         const c = firstMatch([new RegExp("Un\\w{2,3}\\s*charge\\w*\\D{0,4}" + QTY_PAT, "i")], text);
-        const e = firstMatch([new RegExp("Entit\\S*\\s*Un\\w{2,3}\\D{0,4}" + QTY_PAT, "i")], text);
+        const e = firstMatch([new RegExp("Entit\\S*\\s*Un\\w*\\D{0,4}" + QTY_PAT, "i")], text);
         if (c && out.units_kwh != null && num(c[1]) <= out.units_kwh) {
           out.subsidy_units = Math.round((out.units_kwh - num(c[1])) * 100) / 100;
         } else if (e) {
@@ -715,6 +735,26 @@
           out.subsidy_units = 0.0;
         }
       }
+
+      // FPPCA lines
+      const fppcaRe = /(\d+(?:\.\d+)?)\s*@\s*(\d+(?:\.\d+)?)/g;
+      const fppcaLines = [];
+      let fm;
+      while ((fm = fppcaRe.exec(text)) !== null) {
+        fppcaLines.push(`${fm[1]}@${fm[2]}`);
+      }
+      if (fppcaLines.length > 0) {
+        out.fppca = fppcaLines.join(',');
+      }
+
+      // Tariff Category & Account ID
+      const tm = firstMatch([/Tariff\s*(?:Category|Cat|Description)?\D{0,6}(LT-?\s*[0-9](?:\s*\([a-zA-Z0-9]\))?|Domestic|Commercial)/i], text);
+      if (tm) out.tariff_category = tm[1].trim();
+
+      const rr = firstMatch([/RR\s*No\.?[:\s\.\-]{1,4}([A-Za-z0-9\-]+)/i], text);
+      if (rr) out.rr_no = rr[1];
+      const acc = firstMatch([/Account\s*ID\D{0,4}(\d{8,12})/i], text);
+      if (acc) out.account_id = acc[1];
 
       // Collect candidate numbers detected across the document
       const candidates = [];

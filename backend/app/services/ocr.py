@@ -11,7 +11,7 @@ import os
 import re
 
 import pytesseract
-from PIL import Image, ImageFilter, ImageOps
+from PIL import Image, ImageEnhance, ImageFilter, ImageOps
 
 _WIN_TESSERACT = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
 if os.name == "nt" and os.path.exists(_WIN_TESSERACT):
@@ -21,24 +21,57 @@ MULTI_MONTH_DAYS = 45  # keep in sync with tariff_engine.py
 
 
 def ocr_image(data: bytes) -> str:
+    """Preprocess image and run OCR with dual-pass fallback for maximum accuracy."""
     img = Image.open(io.BytesIO(data))
     img = ImageOps.exif_transpose(img).convert("L")  # fix phone rotation, grayscale
-    if img.width < 1600:  # small photos read better when enlarged
-        scale = 1600 / img.width
-        img = img.resize((1600, int(img.height * scale)), Image.Resampling.LANCZOS)
+
+    # Auto-invert if dark background (e.g. night shot or dark mode screenshot)
+    hist = img.histogram()
+    pixels = sum(hist)
+    avg_brightness = sum(i * n for i, n in enumerate(hist)) / max(1, pixels)
+    if avg_brightness < 80:
+        img = ImageOps.invert(img)
+
+    # Resolution scaling: optimal range for spot billing receipts is 1800-2400px width
+    if img.width < 1800:
+        scale = 1800 / img.width
+        img = img.resize((1800, int(img.height * scale)), Image.Resampling.LANCZOS)
     elif img.width > 2400:
         scale = 2200 / img.width
         img = img.resize((2200, int(img.height * scale)), Image.Resampling.LANCZOS)
+
     # Autocontrast / histogram stretch to make faint dot matrix ink pop out
-    img = ImageOps.autocontrast(img, cutoff=2)
-    # Mild sharpen filter to clarify faint dot-matrix print
-    img = img.filter(ImageFilter.SHARPEN)
-    return pytesseract.image_to_string(img, lang="eng", config="--psm 4")
+    img = ImageOps.autocontrast(img, cutoff=(1, 1))
+
+    # Contrast boost for faded thermal dot-matrix print
+    img = ImageEnhance.Contrast(img).enhance(1.2)
+
+    # Primary pass: PSM 4 (single column variable sizes, receipt standard)
+    text = pytesseract.image_to_string(img, lang="eng", config="--psm 4")
+
+    # If primary pass is sparse or missed core fields, try PSM 6 (uniform block)
+    parsed = parse_bill_text(text)
+    if len(text.strip()) < 80 or len(parsed.get("missing", [])) >= 2:
+        try:
+            alt_text = pytesseract.image_to_string(img, lang="eng", config="--psm 6")
+            alt_parsed = parse_bill_text(alt_text)
+            if len(alt_parsed.get("missing", [])) < len(parsed.get("missing", [])):
+                text = alt_text
+            elif len(alt_text.strip()) > len(text.strip()):
+                text = text + "\n" + alt_text
+        except Exception:
+            pass
+
+    return text
 
 
 def _num(s: str) -> float:
     s = s.strip()
-    if re.search(r",\d{2}$", s):  # OCR sometimes reads "424.00" as "424,00"
+    s = re.sub(r"^[₹\$Rs\.\s]+", "", s)
+    s = re.sub(r"[₹\$Rs\.\s]+$", "", s)
+    s = re.sub(r"(?<=\d)[Oo](?=\d|$)", "0", s)
+    s = re.sub(r"(?<=\d)[lI](?=\d|$)", "1", s)
+    if re.search(r"[,:]\d{2}$", s):
         s = s[:-3] + "." + s[-2:]
     return float(s.replace(",", ""))
 
@@ -82,7 +115,7 @@ def parse_bill_text(text: str) -> dict:
 
     # --- units, cross-checked with the meter readings
     m = _first([
-        r"(?:Total\s*|Net\s*|Billed\s*|Actual\s*)?Consumption\s*(?:\(?Units?\)?|\(kWh\)|Units?|kWh)?\D{0,10}" + QTY,
+        r"(?:Total\s*|Net\s*|Billed\s*|Actual\s*)?Consumption\s*(?:[({<\w]*Units?[)}>\]\w]*|\(kWh\)|Units?|kWh)?\D{0,10}" + QTY,
         r"(?:Units?\s*(?:Consumed|Billed|Recorded)|kWh\s*Consumed)\D{0,10}" + QTY,
         r"\bUnits\s*:\s*" + QTY,
         r"Billed\s*kWh\D{0,8}" + QTY
@@ -116,22 +149,40 @@ def parse_bill_text(text: str) -> dict:
 
     # --- sanctioned load
     m = _first([
-        r"(?:Sanctioned|Sanc\.?|Connected|Conn\.?|Contract)?\s*Load\s*(\d+(?:\.\d+)?)\s*(?:KW|HP)\b",
-        r"Load\s*(\d+\.?\d*)\s*KW",
+        r"(?:Sanctioned|Sanc\.?|Connected|Conn\.?|Contract)?\s*Load\s*(\d+(?:\.\d+)?)\s*(KW|HP)\b",
+        r"Load\s*(\d+\.?\d*)\s*(KW|HP)\b",
         r"(\d+\.?\d*)\s*KW\s+\d+\.?\d*\s+\d+\.\d{2}",
         r"(\d+(?:\.\d+)?)\s*KW\b"
     ], text)
     if m:
-        out["sanctioned_load_kw"] = _num(m.group(1))
+        val = _num(m.group(1))
+        if len(m.groups()) >= 2 and m.group(2) and m.group(2).upper() == "HP":
+            out["sanctioned_load_kw"] = round(val * 0.746, 2)
+        else:
+            # If load decimal point was missed (e.g. 41 kW for a domestic load)
+            if 10 < val < 99 and (val % 10 != 0):
+                val = round(val / 10.0, 2)
+            out["sanctioned_load_kw"] = val
+    else:
+        # Check if in HP
+        hp_m = _first([r"(\d+(?:\.\d+)?)\s*HP\b"], text)
+        if hp_m:
+            out["sanctioned_load_kw"] = round(float(hp_m.group(1)) * 0.746, 2)
 
     # --- bill amount = "Bill Amount (1-2)", i.e. before penalties/arrears
     m = _first([
         r"Am\w{2,4}\s*\(\s*\w\s*-\s*\w\s*\)\s*" + MONEY,
-        r"(?:Cur\.?\s*Demand|Current\s*Demand|Cur\.?\s*Dem)\s*(?:Payable)?\D{0,8}" + MONEY,
+        r"(?:[CG]ur\.?\s*Demand|Current\s*Demand|Cur\.?\s*Dem)\s*(?:Payable)?\D{0,8}" + MONEY,
         r"(?:Net\s*Amount|Net\s*Payable|Bill\s*Amount|Amount\s*Payable|Total\s*Payable)\D{0,8}" + MONEY,
+        r"(?:[CG]ur\.?\s*Demand|Current\s*Demand|Cur\.?\s*Dem)\s*(?:Payable)?\D{0,8}" + QTY,
     ], text)
     if m:
-        out["amount_billed"] = _num(m.group(1))
+        raw_amt = m.group(1)
+        val = _num(raw_amt)
+        # Check if 2 decimals were dropped (e.g. 42400 instead of 424.00)
+        if val > 1000 and str(int(val)).endswith("00") and "." not in raw_amt and "," not in raw_amt:
+            val = round(val / 100.0, 2)
+        out["amount_billed"] = val
     else:
         st1 = _first([r"Sub-?\s*Total-?\s*1\D{0,10}" + MONEY], text)
         st2 = _first([r"Sub-?\s*Total-?\s*2\D{0,10}" + MONEY], text)
@@ -157,12 +208,15 @@ def parse_bill_text(text: str) -> dict:
 
     # --- subsidised units: "Eligible for subsidy" (OCR may misread "for"),
     #     then units minus "Units chargeable", then the monthly "Entitlement Units"
-    m = _first([r"Eligible\s*\w{2,4}\s*subsid\w*\D{0,4}" + QTY], text)
+    m = _first([
+        r"Eligib\w*\s*(?:for\s*)?subsid\w*\D{0,4}" + QTY,
+        r"Eligible\s*\w{2,4}\s*subsid\w*\D{0,4}" + QTY
+    ], text)
     if m:
         out["subsidy_units"] = _num(m.group(1))
     else:
         c = _first([r"Un\w{2,3}\s*charge\w*\D{0,4}" + QTY], text)
-        e = _first([r"Entit\S*\s*Un\w{2,3}\D{0,4}" + QTY], text)
+        e = _first([r"Entit\S*\s*Un\w*\D{0,4}" + QTY], text)
         if c and "units_kwh" in out and _num(c.group(1)) <= out["units_kwh"]:
             out["subsidy_units"] = round(out["units_kwh"] - _num(c.group(1)), 2)
         elif e:
@@ -181,6 +235,23 @@ def parse_bill_text(text: str) -> dict:
         else:
             out["subsidy_units"] = 0.0
 
+    # FPPCA lines
+    fppca_matches = re.findall(r"(\d+(?:\.\d+)?)\s*@\s*(\d+(?:\.\d+)?)", text)
+    if fppca_matches:
+        out["fppca"] = ",".join(f"{u}@{r}" for u, r in fppca_matches)
+
+    # Tariff Category & Account ID
+    tm = _first([r"Tariff\s*(?:Category|Cat|Description)?\D{0,6}(LT-?\s*[0-9](?:\s*\([a-zA-Z0-9]\))?|Domestic|Commercial)"], text)
+    if tm:
+        out["tariff_category"] = tm.group(1).strip()
+
+    rr = _first([r"RR\s*No\.?[:\s\.\-]{1,4}([A-Za-z0-9\-]+)"], text)
+    if rr:
+        out["rr_no"] = rr.group(1)
+    acc = _first([r"Account\s*ID\D{0,4}(\d{8,12})"], text)
+    if acc:
+        out["account_id"] = acc.group(1)
+
     # Collect candidate numbers for user suggestions
     candidates = []
     seen = set()
@@ -190,6 +261,18 @@ def parse_bill_text(text: str) -> dict:
             seen.add(val)
             candidates.append(val)
     out["candidates"] = candidates[:15]
+
+    # Extraction confidence metric
+    conf = 0.3
+    if "units_kwh" in out:
+        conf += 0.25
+    if "amount_billed" in out:
+        conf += 0.25
+    if "sanctioned_load_kw" in out:
+        conf += 0.15
+    if "billing_start" in out:
+        conf += 0.05
+    out["confidence"] = round(min(1.0, conf), 2)
 
     out["warnings"] = warnings
     out["missing"] = [k for k in ("units_kwh", "sanctioned_load_kw", "amount_billed") if k not in out]
