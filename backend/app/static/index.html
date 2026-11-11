@@ -1,161 +1,1149 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="h-full">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>BillWise</title>
-<style>
-  body { font-family: system-ui, sans-serif; background: #f4f6f8; margin: 0; color: #1c2430; }
-  main { max-width: 480px; margin: 0 auto; padding: 24px 16px 48px; }
-  h1 { margin: 0 0 4px; }
-  p.sub { margin: 0 0 20px; color: #5b6675; }
-  form, .card { background: #fff; border-radius: 12px; padding: 18px; box-shadow: 0 1px 4px rgba(0,0,0,.08); }
-  label { display: block; margin: 12px 0 4px; font-weight: 600; font-size: 14px; }
-  small { color: #6b7684; font-weight: 400; }
-  input { width: 100%; box-sizing: border-box; padding: 10px; border: 1px solid #c9d1da; border-radius: 8px; font-size: 16px; }
-  details { margin-top: 16px; border-top: 1px solid #e3e8ee; padding-top: 10px; }
-  summary { cursor: pointer; font-weight: 600; font-size: 14px; }
-  button { margin-top: 18px; width: 100%; padding: 12px; font-size: 16px; font-weight: 600;
-           background: #0f7b5f; color: #fff; border: 0; border-radius: 8px; cursor: pointer; }
-  button:disabled { opacity: .6; cursor: wait; }
-  .card { margin-top: 18px; }
-  .ok { border-left: 6px solid #0f7b5f; }
-  .bad { border-left: 6px solid #c62828; }
-  .err { border-left: 6px solid #e0a100; }
-  .row { display: flex; justify-content: space-between; padding: 4px 0; }
-  .note { font-size: 14px; color: #5b6675; }
-  .coach h4 { margin: 14px 0 6px; }
-  .coach p { margin: 6px 0; line-height: 1.45; }
-  .tip { background: #f1f8f5; border-radius: 8px; padding: 10px 12px; margin: 8px 0; }
-  .tip b { display: block; margin-bottom: 2px; }
-  .hidden { display: none; }
-</style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>BillWise — Electricity Bill Verification & Energy Savings Engine</title>
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              50: '#ecfdf5',
+              100: '#d1fae5',
+              200: '#a7f3d0',
+              300: '#6ee7b7',
+              400: '#34d399',
+              500: '#10b981',
+              600: '#059669',
+              700: '#047857',
+              800: '#065f46',
+              900: '#064e3b',
+              950: '#022c22',
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    body {
+      font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+    }
+    .font-mono {
+      font-family: 'JetBrains Mono', monospace;
+    }
+    @keyframes pulse-subtle {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.6; }
+    }
+    .animate-pulse-subtle {
+      animation: pulse-subtle 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+    }
+    /* Custom scrollbar */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: transparent;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #cbd5e1;
+      border-radius: 9999px;
+    }
+    .dark ::-webkit-scrollbar-thumb {
+      background: #334155;
+    }
+  </style>
 </head>
-<body>
-<main>
-  <h1>BillWise</h1>
-  <p class="sub">Check if your electricity bill is calculated correctly.</p>
+<body class="h-full bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 transition-colors duration-200 antialiased flex flex-col min-h-screen">
 
-  <form id="f">
-    <label>Bill photo or PDF</label>
-    <input type="file" id="file" accept="image/jpeg,image/png,application/pdf" required>
-    <small id="scanmsg"></small>
+  <!-- Header -->
+  <header class="sticky top-0 z-40 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 transition-colors">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+      <div class="flex items-center space-x-3">
+        <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-brand-600 to-emerald-400 flex items-center justify-center text-white shadow-lg shadow-brand-500/20">
+          <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M13 10V3L4 14h7v7l9-11h-7z" />
+          </svg>
+        </div>
+        <div>
+          <div class="flex items-center space-x-2">
+            <span class="font-extrabold text-xl tracking-tight bg-gradient-to-r from-slate-900 via-slate-800 to-brand-700 dark:from-white dark:via-slate-100 dark:to-brand-400 bg-clip-text text-transparent">BillWise</span>
+            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-brand-100 dark:bg-brand-950 text-brand-700 dark:text-brand-300 border border-brand-200 dark:border-brand-800">v2.0</span>
+          </div>
+          <p class="text-xs text-slate-500 dark:text-slate-400 hidden sm:block">Autonomous Electricity Tariff Verification & Energy Savings Engine</p>
+        </div>
+      </div>
 
-    <label>Sanctioned load (kW) <small>"Sanc Load" on the bill</small></label>
-    <input type="number" id="load" step="0.1" value="3" required>
+      <div class="flex items-center space-x-3">
+        <!-- Tariff Standard Tag -->
+        <div class="hidden md:flex items-center space-x-2 text-xs bg-slate-100 dark:bg-slate-800/80 text-slate-600 dark:text-slate-300 px-3 py-1.5 rounded-lg border border-slate-200/80 dark:border-slate-700/60">
+          <span class="w-2 h-2 rounded-full bg-emerald-500"></span>
+          <span class="font-medium">BESCOM LT-1 Domestic (Gruha Jyothi Ready)</span>
+        </div>
 
-    <label>Units consumed (kWh) <small>"Consumption (Units)"</small></label>
-    <input type="number" id="units" step="0.01" required>
+        <!-- API Health Pill -->
+        <div id="health-pill" class="flex items-center space-x-1.5 text-xs px-2.5 py-1 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700" title="System API Status">
+          <span id="health-dot" class="w-2 h-2 rounded-full bg-amber-400 animate-pulse"></span>
+          <span id="health-text" class="font-mono text-[11px]">Connecting...</span>
+        </div>
 
-    <label>Bill amount (Rs) <small>"Bill Amount (1-2)", before penalties and arrears</small></label>
-    <input type="number" id="amount" step="0.01" required>
+        <!-- Theme Toggle -->
+        <button id="theme-toggle" class="p-2 rounded-xl text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition" aria-label="Toggle Theme">
+          <svg id="theme-sun" class="w-5 h-5 hidden" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
+          </svg>
+          <svg id="theme-moon" class="w-5 h-5 hidden" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
+          </svg>
+        </button>
+      </div>
+    </div>
+  </header>
 
-    <label>Subsidised units <small>"Eligible for subsidy", use 0 if none</small></label>
-    <input type="number" id="subsidy" step="0.01" value="0" required>
+  <!-- Main Container -->
+  <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8">
 
-    <details id="adv">
-      <summary>Multi-month or special bill? (advanced)</summary>
-      <label>Billing days <small>filled from the bill period; only matters if over 45</small></label>
-      <input type="number" id="days" step="1">
-      <label>FPPCA lines <small>units@rate, e.g. 236.15@0.02,98.85@0.32 (leave empty if the bill has one line)</small></label>
-      <input type="text" id="fppca" placeholder="236.15@0.02,98.85@0.32">
-    </details>
+    <!-- Hero / Info Banner -->
+    <div class="mb-8 p-5 rounded-2xl bg-gradient-to-r from-brand-900/10 via-emerald-800/5 to-transparent border border-brand-200/50 dark:border-brand-900/40 relative overflow-hidden">
+      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <h1 class="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white">Verify Your Electricity Bill in Seconds</h1>
+          <p class="text-sm text-slate-600 dark:text-slate-300 mt-1 max-w-2xl">
+            Upload your monthly bill photo or PDF. Our computer vision OCR scans the readings, runs our precision tariff calculation engine against official KERC slab rules, and audits for overcharges, FPPCA variances, and Gruha Jyothi subsidy miscalculations.
+          </p>
+        </div>
+        <!-- Quick Sample Presets -->
+        <div class="flex flex-wrap sm:flex-col gap-2 shrink-0">
+          <span class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Quick Demos</span>
+          <div class="flex flex-wrap gap-2">
+            <button id="btn-sample-1" type="button" class="px-3 py-1.5 rounded-lg text-xs font-medium bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 hover:border-brand-500 dark:hover:border-brand-500 text-slate-700 dark:text-slate-200 shadow-sm transition">
+              Sample 1: Verified (94 kWh)
+            </button>
+            <button id="btn-sample-2" type="button" class="px-3 py-1.5 rounded-lg text-xs font-medium bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 hover:border-brand-500 dark:hover:border-brand-500 text-slate-700 dark:text-slate-200 shadow-sm transition">
+              Sample 2: Multi-Month (335 kWh)
+            </button>
+            <button id="btn-sample-3" type="button" class="px-3 py-1.5 rounded-lg text-xs font-medium bg-white dark:bg-slate-800 border border-amber-300 dark:border-amber-700 hover:border-amber-500 text-amber-700 dark:text-amber-300 shadow-sm transition">
+              Sample 3: Overcharged Flagged
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
 
-    <button id="btn" type="submit">Check my bill</button>
-  </form>
+    <!-- 2-Column Responsive Layout -->
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
 
-  <div id="result" class="card hidden"></div>
-</main>
+      <!-- LEFT COLUMN: Input & Upload (lg:col-span-5) -->
+      <div class="lg:col-span-5 space-y-6">
 
-<script>
-const $ = id => document.getElementById(id);
-let scanExtra = {};   // penalty and recorded demand read from the photo
-const esc = t => String(t).replace(/[&<>]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;"}[c]));
+        <!-- Form Card -->
+        <div class="bg-white dark:bg-slate-900 rounded-2xl p-6 shadow-sm border border-slate-200 dark:border-slate-800">
+          <div class="flex items-center justify-between mb-4">
+            <h2 class="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
+              <span class="w-6 h-6 rounded-lg bg-brand-100 dark:bg-brand-900/60 text-brand-700 dark:text-brand-300 flex items-center justify-center text-xs font-bold">1</span>
+              Upload Bill Photo or PDF
+            </h2>
+            <span class="text-xs text-slate-400 font-medium">JPG, PNG, PDF &le; 10MB</span>
+          </div>
 
-$("file").addEventListener("change", async () => {
-  const f = $("file").files[0], msg = $("scanmsg");
-  if (!f) return;
-  if (f.type === "application/pdf") { msg.textContent = "PDF: please type the values below."; return; }
-  msg.textContent = "Reading your bill...";
-  try {
-    const fd = new FormData(); fd.append("file", f);
-    const r = await fetch("/api/scan", { method: "POST", body: fd });
-    if (!r.ok) throw new Error((await r.json()).detail);
-    const d = await r.json();
-    if (d.units_kwh != null) $("units").value = d.units_kwh;
-    if (d.sanctioned_load_kw != null) $("load").value = d.sanctioned_load_kw;
-    if (d.amount_billed != null) $("amount").value = d.amount_billed;
-    $("subsidy").value = d.subsidy_units || 0;
-    $("days").value = d.billing_days || "";
-    scanExtra = { md_penalty: d.md_penalty, recorded_md_kw: d.recorded_md_kw };
-    const parts = [];
-    parts.push(d.missing.length
-      ? "Could not read: " + d.missing.join(", ") + ". Please type them in."
-      : "Values filled from your photo. Please check them before continuing.");
-    (d.warnings || []).forEach(w => parts.push(w));
-    if (d.billing_days > 45) {
-      $("adv").open = true;
-      parts.push("This is a " + d.billing_days + "-day (multi-month) bill. Type the FPPCA lines from the bill in the advanced box.");
+          <!-- Drag and Drop Zone -->
+          <div id="dropzone" class="border-2 border-dashed border-slate-300 dark:border-slate-700 hover:border-brand-500 dark:hover:border-brand-500 rounded-xl p-5 text-center cursor-pointer transition-all bg-slate-50/60 dark:bg-slate-800/40 relative group">
+            <input type="file" id="file" class="hidden" accept="image/jpeg,image/png,application/pdf">
+
+            <!-- Default Empty State in Dropzone -->
+            <div id="dropzone-empty" class="space-y-3">
+              <div class="w-12 h-12 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-400 group-hover:text-brand-600 dark:group-hover:text-brand-400 mx-auto flex items-center justify-center transition">
+                <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                </svg>
+              </div>
+              <div>
+                <p class="text-sm font-semibold text-slate-700 dark:text-slate-200">
+                  <span class="text-brand-600 dark:text-brand-400">Click to upload</span> or drag and drop
+                </p>
+                <p class="text-xs text-slate-500 dark:text-slate-400 mt-1">Automatic OCR scan triggers on image upload</p>
+              </div>
+            </div>
+
+            <!-- File Selected Preview State -->
+            <div id="file-preview-card" class="hidden flex items-center justify-between text-left p-3 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
+              <div class="flex items-center space-x-3 overflow-hidden">
+                <div id="preview-thumbnail-container" class="w-12 h-12 rounded-lg overflow-hidden bg-slate-100 dark:bg-slate-700 shrink-0 flex items-center justify-center">
+                  <img id="preview-img" src="" alt="Bill preview" class="w-full h-full object-cover hidden">
+                  <svg id="preview-pdf-icon" class="w-6 h-6 text-red-500 hidden" fill="currentColor" viewBox="0 0 20 20">
+                    <path fill-rule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4zm2 6a1 1 0 011-1h6a1 1 0 110 2H7a1 1 0 01-1-1zm1 3a1 1 0 100 2h6a1 1 0 100-2H7z" clip-rule="evenodd" />
+                  </svg>
+                </div>
+                <div class="min-w-0">
+                  <p id="file-name" class="text-sm font-semibold text-slate-800 dark:text-slate-200 truncate">bill.jpg</p>
+                  <p id="file-size" class="text-xs text-slate-500 dark:text-slate-400">124 KB</p>
+                </div>
+              </div>
+              <button id="btn-remove-file" type="button" class="p-1.5 rounded-lg text-slate-400 hover:text-red-500 hover:bg-slate-100 dark:hover:bg-slate-700 transition" title="Remove file">
+                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+          </div>
+
+          <!-- OCR Live Scanner Status Bar -->
+          <div id="ocr-status-card" class="mt-4 p-3 rounded-xl bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700/80 text-xs hidden">
+            <div class="flex items-center space-x-2">
+              <span id="ocr-spinner" class="inline-block w-3.5 h-3.5 border-2 border-brand-500 border-t-transparent rounded-full animate-spin"></span>
+              <span id="ocr-status-icon" class="hidden text-brand-600 dark:text-brand-400">
+                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7" /></svg>
+              </span>
+              <span id="ocr-status-text" class="font-medium text-slate-700 dark:text-slate-300">Reading bill details...</span>
+            </div>
+            <!-- Missing fields chip list -->
+            <div id="ocr-missing-chips" class="mt-2 flex flex-wrap gap-1.5 hidden">
+              <span class="text-amber-600 dark:text-amber-400 font-semibold text-[11px]">Please enter manually:</span>
+            </div>
+            <!-- Warnings banner -->
+            <div id="ocr-warning-box" class="mt-2 text-amber-700 dark:text-amber-300 text-[11px] bg-amber-50 dark:bg-amber-950/40 p-2 rounded border border-amber-200 dark:border-amber-800 hidden"></div>
+          </div>
+
+          <!-- Form Details -->
+          <form id="bill-form" class="mt-6 space-y-4">
+            <div class="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800">
+              <h2 class="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                <span class="w-6 h-6 rounded-lg bg-brand-100 dark:bg-brand-900/60 text-brand-700 dark:text-brand-300 flex items-center justify-center text-xs font-bold">2</span>
+                Tariff Parameters
+              </h2>
+              <span class="text-xs text-slate-400">Review or adjust values</span>
+            </div>
+
+            <!-- Sanctioned Load -->
+            <div>
+              <div class="flex items-center justify-between mb-1.5">
+                <label for="load" class="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                  Sanctioned Load (kW)
+                  <span id="badge-load-ocr" class="hidden px-1.5 py-0.2 rounded text-[10px] font-mono font-semibold bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800">OCR</span>
+                </label>
+                <span class="text-[11px] text-slate-500 dark:text-slate-400">"Sanc Load" on bill</span>
+              </div>
+              <div class="relative">
+                <input type="number" id="load" step="0.1" min="0.1" value="3" required
+                  class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800/80 text-slate-900 dark:text-slate-100 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent transition">
+                <span class="absolute right-3 top-2.5 text-xs font-medium text-slate-400">kW</span>
+              </div>
+            </div>
+
+            <!-- Units Consumed -->
+            <div>
+              <div class="flex items-center justify-between mb-1.5">
+                <label for="units" class="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                  Units Consumed (kWh)
+                  <span id="badge-units-ocr" class="hidden px-1.5 py-0.2 rounded text-[10px] font-mono font-semibold bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800">OCR</span>
+                </label>
+                <span class="text-[11px] text-slate-500 dark:text-slate-400">"Consumption (Units)"</span>
+              </div>
+              <div class="relative">
+                <input type="number" id="units" step="0.01" min="0" placeholder="e.g. 94" required
+                  class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800/80 text-slate-900 dark:text-slate-100 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent transition">
+                <span class="absolute right-3 top-2.5 text-xs font-medium text-slate-400">kWh</span>
+              </div>
+            </div>
+
+            <!-- Billed Amount -->
+            <div>
+              <div class="flex items-center justify-between mb-1.5">
+                <label for="amount" class="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                  Bill Amount on Paper (₹)
+                  <span id="badge-amount-ocr" class="hidden px-1.5 py-0.2 rounded text-[10px] font-mono font-semibold bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800">OCR</span>
+                </label>
+                <span class="text-[11px] text-slate-500 dark:text-slate-400">"Bill Amount (1-2)" net</span>
+              </div>
+              <div class="relative">
+                <span class="absolute left-3.5 top-2.5 text-xs font-semibold text-slate-400">₹</span>
+                <input type="number" id="amount" step="0.01" min="0" placeholder="e.g. 173.94" required
+                  class="w-full pl-8 pr-3.5 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800/80 text-slate-900 dark:text-slate-100 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent transition">
+              </div>
+            </div>
+
+            <!-- Subsidy Units (Gruha Jyothi) -->
+            <div>
+              <div class="flex items-center justify-between mb-1.5">
+                <label for="subsidy" class="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                  Subsidised Units (Gruha Jyothi)
+                  <span id="badge-subsidy-ocr" class="hidden px-1.5 py-0.2 rounded text-[10px] font-mono font-semibold bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800">OCR</span>
+                </label>
+                <span class="text-[11px] text-slate-500 dark:text-slate-400">"Eligible for subsidy" (0 if none)</span>
+              </div>
+              <div class="relative">
+                <input type="number" id="subsidy" step="0.01" min="0" value="0" required
+                  class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800/80 text-slate-900 dark:text-slate-100 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent transition">
+                <span class="absolute right-3 top-2.5 text-xs font-medium text-slate-400">Units</span>
+              </div>
+            </div>
+
+            <!-- Advanced Settings Accordion -->
+            <details id="advanced-details" class="group rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden bg-slate-50/50 dark:bg-slate-800/30 transition">
+              <summary class="px-4 py-3 cursor-pointer text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center justify-between select-none">
+                <div class="flex items-center gap-2">
+                  <svg class="w-4 h-4 text-slate-400 group-open:rotate-90 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+                  </svg>
+                  <span>Advanced Settings & Multi-Month Options</span>
+                </div>
+                <span id="adv-badge" class="text-[10px] font-mono px-1.5 py-0.5 rounded bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-400">Optional</span>
+              </summary>
+              <div class="p-4 space-y-3.5 border-t border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/60">
+                <!-- Billing Days -->
+                <div>
+                  <div class="flex items-center justify-between mb-1">
+                    <label for="days" class="text-[11px] font-semibold text-slate-700 dark:text-slate-300">Billing Days (Period length)</label>
+                    <span class="text-[10px] text-slate-400">Fixed charge prorated if &gt; 45</span>
+                  </div>
+                  <input type="number" id="days" step="1" min="1" placeholder="30 (or e.g. 61 for bi-monthly)"
+                    class="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs text-slate-900 dark:text-slate-100 font-medium focus:ring-1 focus:ring-brand-500 focus:outline-none">
+                </div>
+
+                <!-- FPPCA Segmented Rates -->
+                <div>
+                  <div class="flex items-center justify-between mb-1">
+                    <label for="fppca" class="text-[11px] font-semibold text-slate-700 dark:text-slate-300">FPPCA Segmented Lines</label>
+                    <span class="text-[10px] text-slate-400">Format: units@rate</span>
+                  </div>
+                  <input type="text" id="fppca" placeholder="e.g. 236.15@0.02,98.85@0.32"
+                    class="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs font-mono text-slate-900 dark:text-slate-100 focus:ring-1 focus:ring-brand-500 focus:outline-none">
+                  <div class="mt-1 flex gap-1.5">
+                    <button type="button" onclick="document.getElementById('fppca').value='236.15@0.02,98.85@0.32'" class="text-[10px] text-brand-600 dark:text-brand-400 hover:underline">
+                      + Insert Sample FPPCA segments
+                    </button>
+                  </div>
+                </div>
+
+                <!-- Peak Demand & Penalty -->
+                <div class="grid grid-cols-2 gap-3">
+                  <div>
+                    <label for="recorded-md" class="text-[11px] font-semibold text-slate-700 dark:text-slate-300 block mb-1">Recorded MD (kW)</label>
+                    <input type="number" id="recorded-md" step="0.01" min="0" placeholder="e.g. 2.75"
+                      class="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs text-slate-900 dark:text-slate-100 font-medium focus:ring-1 focus:ring-brand-500 focus:outline-none">
+                  </div>
+                  <div>
+                    <label for="md-penalty" class="text-[11px] font-semibold text-slate-700 dark:text-slate-300 block mb-1">MD Penalty (₹)</label>
+                    <input type="number" id="md-penalty" step="0.01" min="0" placeholder="e.g. 337.50"
+                      class="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs text-slate-900 dark:text-slate-100 font-medium focus:ring-1 focus:ring-brand-500 focus:outline-none">
+                  </div>
+                </div>
+              </div>
+            </details>
+
+            <!-- Submit Button -->
+            <button id="btn-submit" type="submit"
+              class="w-full py-3.5 px-5 rounded-xl font-bold text-sm text-white bg-gradient-to-r from-brand-600 to-emerald-600 hover:from-brand-500 hover:to-emerald-500 active:scale-[0.99] shadow-lg shadow-brand-600/25 transition flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-wait">
+              <svg id="submit-icon" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <span id="submit-spinner" class="hidden w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
+              <span id="btn-submit-text">Verify Electricity Bill</span>
+            </button>
+          </form>
+        </div>
+
+      </div>
+
+      <!-- RIGHT COLUMN: Verification Results & Savings Coach (lg:col-span-7) -->
+      <div class="lg:col-span-7 space-y-6">
+
+        <!-- Initial Placeholder State (When no verification has run yet) -->
+        <div id="empty-state-card" class="bg-white dark:bg-slate-900 rounded-2xl p-8 shadow-sm border border-slate-200 dark:border-slate-800 text-center space-y-6">
+          <div class="w-16 h-16 rounded-2xl bg-brand-50 dark:bg-brand-950/60 border border-brand-200 dark:border-brand-800/80 text-brand-600 dark:text-brand-400 mx-auto flex items-center justify-center shadow-inner">
+            <svg class="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+            </svg>
+          </div>
+
+          <div class="max-w-md mx-auto">
+            <h3 class="text-lg font-bold text-slate-900 dark:text-white">Awaiting Bill Data</h3>
+            <p class="text-sm text-slate-500 dark:text-slate-400 mt-1.5">
+              Upload an electricity bill photo on the left or click any quick demo above to generate an immediate tariff audit report.
+            </p>
+          </div>
+
+          <!-- Feature Highlights Grid -->
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-left">
+            <div class="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/60 dark:border-slate-700/50">
+              <div class="text-brand-600 dark:text-brand-400 font-bold text-xs flex items-center gap-1.5 mb-1">
+                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" /></svg>
+                Double-Entry Slab Audit
+              </div>
+              <p class="text-xs text-slate-600 dark:text-slate-400">Validates telescopic slab brackets and fixed charges per kW against regulatory tariff orders.</p>
+            </div>
+
+            <div class="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/60 dark:border-slate-700/50">
+              <div class="text-emerald-600 dark:text-emerald-400 font-bold text-xs flex items-center gap-1.5 mb-1">
+                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                Gruha Jyothi Subsidy
+              </div>
+              <p class="text-xs text-slate-600 dark:text-slate-400">Calculates zero-bill eligibility and reconciles government subsidy credit line items.</p>
+            </div>
+
+            <div class="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/60 dark:border-slate-700/50">
+              <div class="text-sky-600 dark:text-sky-400 font-bold text-xs flex items-center gap-1.5 mb-1">
+                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
+                FPPCA Segments & Multi-Month
+              </div>
+              <p class="text-xs text-slate-600 dark:text-slate-400">Prorates fixed charges and accurately models fuel adjustment charges spanning irregular periods.</p>
+            </div>
+
+            <div class="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/60 dark:border-slate-700/50">
+              <div class="text-purple-600 dark:text-purple-400 font-bold text-xs flex items-center gap-1.5 mb-1">
+                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" /></svg>
+                AI Savings Coach
+              </div>
+              <p class="text-xs text-slate-600 dark:text-slate-400">Actionable conservation tips, appliance runtime equivalence, and carbon offset statistics.</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Verification Results Container (Populated dynamically) -->
+        <div id="results-container" class="hidden space-y-6">
+
+          <!-- Hero Verification Status Card -->
+          <div id="hero-status-card" class="rounded-2xl p-6 shadow-sm border transition-all">
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div class="flex items-center space-x-3.5">
+                <div id="hero-status-icon" class="w-12 h-12 rounded-xl flex items-center justify-center shrink-0"></div>
+                <div>
+                  <h3 id="hero-status-title" class="text-lg font-bold"></h3>
+                  <p id="hero-status-desc" class="text-xs mt-0.5"></p>
+                </div>
+              </div>
+              <div id="hero-variance-pill" class="inline-flex items-center px-3.5 py-1.5 rounded-full font-mono text-xs font-bold shrink-0"></div>
+            </div>
+
+            <!-- Notes List -->
+            <div id="result-notes-container" class="mt-4 pt-4 border-t hidden space-y-1.5 text-xs"></div>
+          </div>
+
+          <!-- Comparison Numbers Grid -->
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <!-- Billed Amount Card -->
+            <div class="bg-white dark:bg-slate-900 rounded-2xl p-4 border border-slate-200 dark:border-slate-800 shadow-sm">
+              <span class="text-xs font-semibold text-slate-500 dark:text-slate-400 block mb-1">Utility Billed</span>
+              <div class="flex items-baseline space-x-1">
+                <span class="text-xs font-bold text-slate-400">₹</span>
+                <span id="metric-billed" class="text-2xl font-extrabold text-slate-900 dark:text-white font-mono">0.00</span>
+              </div>
+              <span class="text-[11px] text-slate-400 mt-1 block">As stated on invoice</span>
+            </div>
+
+            <!-- Recomputed Card -->
+            <div class="bg-white dark:bg-slate-900 rounded-2xl p-4 border border-slate-200 dark:border-slate-800 shadow-sm">
+              <span class="text-xs font-semibold text-slate-500 dark:text-slate-400 block mb-1">BillWise Recomputed</span>
+              <div class="flex items-baseline space-x-1">
+                <span class="text-xs font-bold text-brand-600 dark:text-brand-400">₹</span>
+                <span id="metric-recomputed" class="text-2xl font-extrabold text-brand-600 dark:text-brand-400 font-mono">0.00</span>
+              </div>
+              <span class="text-[11px] text-slate-400 mt-1 block">Tariff engine net</span>
+            </div>
+
+            <!-- Variance Card -->
+            <div class="bg-white dark:bg-slate-900 rounded-2xl p-4 border border-slate-200 dark:border-slate-800 shadow-sm">
+              <span class="text-xs font-semibold text-slate-500 dark:text-slate-400 block mb-1">Variance Gap</span>
+              <div class="flex items-baseline space-x-1">
+                <span class="text-xs font-bold text-slate-400">₹</span>
+                <span id="metric-variance" class="text-2xl font-extrabold font-mono">0.00</span>
+              </div>
+              <span id="metric-variance-note" class="text-[11px] mt-1 block font-medium">Within tolerance</span>
+            </div>
+          </div>
+
+          <!-- Itemized Tariff Breakdown Card -->
+          <div class="bg-white dark:bg-slate-900 rounded-2xl p-6 shadow-sm border border-slate-200 dark:border-slate-800">
+            <div class="flex items-center justify-between mb-4">
+              <h3 class="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                <svg class="w-4 h-4 text-brand-600 dark:text-brand-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                </svg>
+                Itemized Tariff Calculation Breakdown
+              </h3>
+              <span class="text-[11px] font-mono text-slate-400">Rule-as-Data Engine</span>
+            </div>
+
+            <div class="overflow-x-auto">
+              <table class="w-full text-left text-xs">
+                <thead>
+                  <tr class="border-b border-slate-200 dark:border-slate-800 text-slate-400 font-semibold">
+                    <th class="py-2.5 pr-4">Component</th>
+                    <th class="py-2.5 px-3 text-right">Units / kW</th>
+                    <th class="py-2.5 px-3 text-right">Tariff Rate</th>
+                    <th class="py-2.5 pl-4 text-right">Amount (₹)</th>
+                  </tr>
+                </thead>
+                <tbody id="breakdown-tbody" class="divide-y divide-slate-100 dark:divide-slate-800/80 font-medium">
+                  <!-- Populated via JS -->
+                </tbody>
+              </table>
+            </div>
+
+            <!-- Subsidy credit callout row if subsidy applied -->
+            <div id="subsidy-breakdown-box" class="mt-4 p-3.5 rounded-xl bg-brand-50/70 dark:bg-brand-950/40 border border-brand-200/70 dark:border-brand-900/60 hidden">
+              <div class="flex items-center justify-between text-xs font-semibold text-brand-800 dark:text-brand-300">
+                <div class="flex items-center gap-1.5">
+                  <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" /></svg>
+                  <span>Gruha Jyothi Government Subsidy Deduction</span>
+                </div>
+                <span id="subsidy-breakdown-total" class="font-mono font-bold">- ₹0.00</span>
+              </div>
+              <p id="subsidy-breakdown-text" class="text-[11px] text-brand-700 dark:text-brand-400 mt-1"></p>
+            </div>
+          </div>
+
+          <!-- Savings Coach Section -->
+          <div class="bg-white dark:bg-slate-900 rounded-2xl p-6 shadow-sm border border-slate-200 dark:border-slate-800 space-y-4">
+            <div class="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
+              <div class="flex items-center gap-2">
+                <div class="w-7 h-7 rounded-lg bg-emerald-100 dark:bg-emerald-950 text-emerald-600 dark:text-emerald-400 flex items-center justify-center">
+                  <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+                  </svg>
+                </div>
+                <div>
+                  <h3 class="text-sm font-bold text-slate-900 dark:text-white">Energy & Savings Coach</h3>
+                  <p class="text-[11px] text-slate-400">Rule-based analytical advice and energy optimization insights</p>
+                </div>
+              </div>
+              <div id="coach-marginal-pill" class="text-right hidden sm:block">
+                <span class="text-[10px] text-slate-400 block">Marginal cost / kWh</span>
+                <span id="coach-marginal-val" class="font-mono text-xs font-bold text-slate-700 dark:text-slate-300">₹0.00</span>
+              </div>
+            </div>
+
+            <!-- Coach Summary Bullets -->
+            <div id="coach-summary-box" class="space-y-2 text-xs text-slate-600 dark:text-slate-300"></div>
+
+            <!-- Coach Tips Grid -->
+            <div id="coach-tips-grid" class="grid grid-cols-1 md:grid-cols-2 gap-3 pt-2"></div>
+          </div>
+
+          <!-- Bottom Actions Bar -->
+          <div class="flex flex-wrap items-center justify-between gap-3 pt-2">
+            <button type="button" onclick="window.print()" class="px-4 py-2 rounded-xl text-xs font-semibold bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 flex items-center gap-1.5 shadow-sm transition">
+              <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" /></svg>
+              Print / Save PDF Report
+            </button>
+            <button type="button" onclick="resetApp()" class="px-4 py-2 rounded-xl text-xs font-semibold text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200 transition">
+              Clear & Verify Another Bill
+            </button>
+          </div>
+
+        </div>
+
+      </div>
+
+    </div>
+
+  </main>
+
+  <!-- Toast Notification Container -->
+  <div id="toast-container" class="fixed bottom-5 right-5 z-50 flex flex-col space-y-2 max-w-sm w-full pointer-events-none"></div>
+
+  <!-- Client-side Logic Script -->
+  <script>
+    // State management
+    const state = {
+      scanExtra: {},
+      selectedFile: null,
+      isScanning: false,
+      isSubmitting: false,
+    };
+
+    const $ = id => document.getElementById(id);
+    const esc = t => String(t ?? '').replace(/[&<>]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;"}[c]));
+    const rs = val => '₹' + Number(val || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+    // Toast Notification System
+    function showToast(message, type = 'info', duration = 4000) {
+      const container = $('toast-container');
+      const toast = document.createElement('div');
+      
+      const typeStyles = {
+        success: 'bg-emerald-600 text-white',
+        warning: 'bg-amber-500 text-white',
+        error: 'bg-red-600 text-white',
+        info: 'bg-slate-800 text-white dark:bg-slate-700',
+      };
+
+      const icons = {
+        success: '<svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>',
+        warning: '<svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>',
+        error: '<svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"/></svg>',
+        info: '<svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>',
+      };
+
+      toast.className = `${typeStyles[type] || typeStyles.info} pointer-events-auto p-3.5 rounded-xl shadow-xl flex items-center justify-between text-xs font-semibold gap-3 transform transition-all duration-300 translate-y-2 opacity-0`;
+      toast.innerHTML = `
+        <div class="flex items-center gap-2">
+          ${icons[type] || icons.info}
+          <span>${esc(message)}</span>
+        </div>
+        <button class="text-white/80 hover:text-white transition" onclick="this.parentElement.remove()">
+          <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+        </button>
+      `;
+
+      container.appendChild(toast);
+      requestAnimationFrame(() => {
+        toast.classList.remove('translate-y-2', 'opacity-0');
+      });
+
+      if (duration > 0) {
+        setTimeout(() => {
+          toast.classList.add('opacity-0', 'translate-y-2');
+          setTimeout(() => toast.remove(), 300);
+        }, duration);
+      }
     }
-    if (d.md_penalty) parts.push("This bill includes a penalty of Rs " + d.md_penalty.toFixed(2) + " (not part of this check).");
-    msg.textContent = parts.join(" ");
-  } catch (err) { msg.textContent = "Could not read the photo (" + err.message + "). Type the values in."; }
-});
 
-$("f").addEventListener("submit", async (e) => {
-  e.preventDefault();
-  const btn = $("btn"), box = $("result");
-  btn.disabled = true; btn.textContent = "Checking...";
-  try {
-    // 1. create premises
-    let r = await fetch(`/api/premises?label=Home&sanctioned_load_kw=${$("load").value}`, { method: "POST" });
-    if (!r.ok) throw new Error("Could not create premises");
-    const premises = await r.json();
+    // Health check ping
+    async function checkHealth() {
+      const dot = $('health-dot'), txt = $('health-text');
+      try {
+        const r = await fetch('/health');
+        if (r.ok) {
+          dot.className = 'w-2 h-2 rounded-full bg-emerald-500';
+          txt.textContent = 'API Ready';
+        } else {
+          throw new Error();
+        }
+      } catch {
+        dot.className = 'w-2 h-2 rounded-full bg-red-500';
+        txt.textContent = 'Offline';
+      }
+    }
+    checkHealth();
 
-    // 2. upload bill
-    const fd = new FormData();
-    fd.append("file", $("file").files[0]);
-    r = await fetch(`/api/premises/${premises.id}/bills`, { method: "POST", body: fd });
-    if (!r.ok) throw new Error((await r.json()).detail || "Upload failed");
-    const bill = await r.json();
+    // Dark/Light Theme Handler
+    const themeBtn = $('theme-toggle');
+    const sunIcon = $('theme-sun'), moonIcon = $('theme-moon');
 
-    // 3. verify
-    const q = new URLSearchParams({
-      units_kwh: $("units").value,
-      amount_billed: $("amount").value,
-      subsidy_units: $("subsidy").value,
+    function initTheme() {
+      const isDark = localStorage.theme === 'dark' || (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches);
+      if (isDark) {
+        document.documentElement.classList.add('dark');
+        sunIcon.classList.remove('hidden');
+        moonIcon.classList.add('hidden');
+      } else {
+        document.documentElement.classList.remove('dark');
+        moonIcon.classList.remove('hidden');
+        sunIcon.classList.add('hidden');
+      }
+    }
+    initTheme();
+
+    themeBtn.addEventListener('click', () => {
+      const isDark = document.documentElement.classList.contains('dark');
+      if (isDark) {
+        document.documentElement.classList.remove('dark');
+        localStorage.theme = 'light';
+        moonIcon.classList.remove('hidden');
+        sunIcon.classList.add('hidden');
+      } else {
+        document.documentElement.classList.add('dark');
+        localStorage.theme = 'dark';
+        sunIcon.classList.remove('hidden');
+        moonIcon.classList.add('hidden');
+      }
     });
-    if ($("days").value) q.set("billing_days", $("days").value);
-    if ($("fppca").value.trim()) q.set("fppca", $("fppca").value.trim());
-    if (scanExtra.md_penalty) q.set("md_penalty", scanExtra.md_penalty);
-    if (scanExtra.recorded_md_kw) q.set("recorded_md_kw", scanExtra.recorded_md_kw);
-    r = await fetch(`/api/bills/${bill.bill_id}/verify?${q}`, { method: "POST" });
-    if (!r.ok) throw new Error((await r.json()).detail || "Verification failed");
-    const v = await r.json();
 
-    box.className = "card " + (v.flagged ? "bad" : "ok");
-    box.innerHTML = `
-      <h3>${v.flagged ? "Possible billing error" : "Bill looks correct"}</h3>
-      <div class="row"><span>Billed</span><b>Rs ${v.billed.toFixed(2)}</b></div>
-      <div class="row"><span>Our calculation</span><b>Rs ${v.recomputed.toFixed(2)}</b></div>
-      <div class="row"><span>Difference</span><b>Rs ${v.variance.toFixed(2)}</b></div>
-      <p>${v.message}</p>` + (v.notes || []).map(n => `<p class="note">${esc(n)}</p>`).join("");
-    if (v.coach) {
-      const c = v.coach;
-      box.innerHTML += `<div class="coach"><h4>What this means</h4>` +
-        c.summary.map(t => `<p>${esc(t)}</p>`).join("") +
-        (c.tips.length ? `<h4>How to save</h4>` +
-          c.tips.map(t => `<div class="tip"><b>${esc(t.title)}</b>${esc(t.text)}</div>`).join("") : "") +
-        `</div>`;
+    // File Dropzone Handling
+    const dropzone = $('dropzone');
+    const fileInput = $('file');
+    const dropzoneEmpty = $('dropzone-empty');
+    const filePreviewCard = $('file-preview-card');
+    const previewImg = $('preview-img');
+    const previewPdfIcon = $('preview-pdf-icon');
+    const fileNameEl = $('file-name');
+    const fileSizeEl = $('file-size');
+    const btnRemoveFile = $('btn-remove-file');
+
+    dropzone.addEventListener('click', (e) => {
+      if (e.target.closest('#btn-remove-file')) return;
+      fileInput.click();
+    });
+
+    ['dragenter', 'dragover'].forEach(name => {
+      dropzone.addEventListener(name, (e) => {
+        e.preventDefault();
+        dropzone.classList.add('border-brand-500', 'bg-brand-50/50', 'dark:bg-brand-950/20');
+      });
+    });
+
+    ['dragleave', 'drop'].forEach(name => {
+      dropzone.addEventListener(name, (e) => {
+        e.preventDefault();
+        dropzone.classList.remove('border-brand-500', 'bg-brand-50/50', 'dark:bg-brand-950/20');
+      });
+    });
+
+    dropzone.addEventListener('drop', (e) => {
+      if (e.dataTransfer.files && e.dataTransfer.files.length) {
+        handleFileSelect(e.dataTransfer.files[0]);
+      }
+    });
+
+    fileInput.addEventListener('change', () => {
+      if (fileInput.files && fileInput.files.length) {
+        handleFileSelect(fileInput.files[0]);
+      }
+    });
+
+    btnRemoveFile.addEventListener('click', (e) => {
+      e.stopPropagation();
+      resetFileInput();
+    });
+
+    function resetFileInput() {
+      state.selectedFile = null;
+      fileInput.value = '';
+      dropzoneEmpty.classList.remove('hidden');
+      filePreviewCard.classList.add('hidden');
+      previewImg.classList.add('hidden');
+      previewPdfIcon.classList.add('hidden');
+      $('ocr-status-card').classList.add('hidden');
+      clearOcrBadges();
     }
-  } catch (err) {
-    box.className = "card err";
-    box.textContent = err.message;
-  } finally {
-    box.classList.remove("hidden");
-    btn.disabled = false; btn.textContent = "Check my bill";
-  }
-});
-</script>
+
+    function clearOcrBadges() {
+      ['badge-load-ocr', 'badge-units-ocr', 'badge-amount-ocr', 'badge-subsidy-ocr'].forEach(id => {
+        $(id)?.classList.add('hidden');
+      });
+    }
+
+    function handleFileSelect(file) {
+      if (!file) return;
+      state.selectedFile = file;
+
+      // Update Preview Card UI
+      fileNameEl.textContent = file.name;
+      fileSizeEl.textContent = (file.size / 1024).toFixed(1) + ' KB';
+      dropzoneEmpty.classList.add('hidden');
+      filePreviewCard.classList.remove('hidden');
+
+      if (file.type.startsWith('image/')) {
+        previewPdfIcon.classList.add('hidden');
+        previewImg.classList.remove('hidden');
+        const reader = new FileReader();
+        reader.onload = e => previewImg.src = e.target.result;
+        reader.readAsDataURL(file);
+        triggerOcrScan(file);
+      } else if (file.type === 'application/pdf') {
+        previewImg.classList.add('hidden');
+        previewPdfIcon.classList.remove('hidden');
+        showToast('PDF file uploaded. Please review or enter your bill numbers.', 'info');
+        $('ocr-status-card').classList.add('hidden');
+      } else {
+        showToast('Please upload a JPG, PNG, or PDF bill file.', 'warning');
+      }
+    }
+
+    // OCR Scan Runner
+    async function triggerOcrScan(file) {
+      const statusCard = $('ocr-status-card');
+      const spinner = $('ocr-spinner');
+      const icon = $('ocr-status-icon');
+      const text = $('ocr-status-text');
+      const missingChips = $('ocr-missing-chips');
+      const warnBox = $('ocr-warning-box');
+
+      statusCard.classList.remove('hidden');
+      spinner.classList.remove('hidden');
+      icon.classList.add('hidden');
+      text.textContent = 'Running Tesseract OCR extraction...';
+      missingChips.classList.add('hidden');
+      warnBox.classList.add('hidden');
+      clearOcrBadges();
+
+      try {
+        const fd = new FormData();
+        fd.append('file', file);
+        const r = await fetch('/api/scan', { method: 'POST', body: fd });
+        if (!r.ok) {
+          const errData = await r.json().catch(() => ({}));
+          throw new Error(errData.detail || 'OCR engine unavailable');
+        }
+        const d = await r.json();
+
+        // Populate fields if read
+        let filledCount = 0;
+        if (d.sanctioned_load_kw != null) {
+          $('load').value = d.sanctioned_load_kw;
+          $('badge-load-ocr').classList.remove('hidden');
+          filledCount++;
+        }
+        if (d.units_kwh != null) {
+          $('units').value = d.units_kwh;
+          $('badge-units-ocr').classList.remove('hidden');
+          filledCount++;
+        }
+        if (d.amount_billed != null) {
+          $('amount').value = d.amount_billed;
+          $('badge-amount-ocr').classList.remove('hidden');
+          filledCount++;
+        }
+        if (d.subsidy_units != null) {
+          $('subsidy').value = d.subsidy_units;
+          $('badge-subsidy-ocr').classList.remove('hidden');
+        }
+        if (d.billing_days != null) {
+          $('days').value = d.billing_days;
+          if (d.billing_days > 45) {
+            $('advanced-details').open = true;
+          }
+        }
+        if (d.recorded_md_kw != null) {
+          $('recorded-md').value = d.recorded_md_kw;
+        }
+        if (d.md_penalty != null) {
+          $('md-penalty').value = d.md_penalty;
+          $('advanced-details').open = true;
+        }
+
+        state.scanExtra = {
+          md_penalty: d.md_penalty,
+          recorded_md_kw: d.recorded_md_kw,
+        };
+
+        // Update OCR Status Card
+        spinner.classList.add('hidden');
+        icon.classList.remove('hidden');
+        text.textContent = `Extracted ${filledCount} field${filledCount === 1 ? '' : 's'} from bill photo.`;
+
+        // Missing fields notification
+        if (d.missing && d.missing.length > 0) {
+          missingChips.innerHTML = '<span class="text-amber-600 dark:text-amber-400 font-semibold text-[11px]">Missing:</span>';
+          d.missing.forEach(m => {
+            const chip = document.createElement('span');
+            chip.className = 'px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300 font-mono text-[10px]';
+            chip.textContent = m.replace('_', ' ');
+            missingChips.appendChild(chip);
+          });
+          missingChips.classList.remove('hidden');
+        }
+
+        // Warnings notification
+        if (d.warnings && d.warnings.length > 0) {
+          warnBox.textContent = d.warnings.join(' • ');
+          warnBox.classList.remove('hidden');
+        }
+
+        showToast(`OCR successfully detected ${filledCount} bill values!`, 'success');
+      } catch (err) {
+        spinner.classList.add('hidden');
+        text.textContent = `OCR notice: ${err.message}. Please verify numbers manually.`;
+        showToast('Photo OCR failed or was inconclusive. Please type in values.', 'warning');
+      }
+    }
+
+    // Quick Sample Demos
+    $('btn-sample-1').addEventListener('click', () => {
+      $('load').value = '3';
+      $('units').value = '94';
+      $('amount').value = '173.94';
+      $('subsidy').value = '67';
+      $('days').value = '31';
+      $('fppca').value = '';
+      $('recorded-md').value = '';
+      $('md-penalty').value = '';
+      state.scanExtra = {};
+      clearOcrBadges();
+      showToast('Loaded Sample 1: Domestic 94 kWh (BESCOM Verified)', 'info');
+      $('bill-form').dispatchEvent(new Event('submit'));
+    });
+
+    $('btn-sample-2').addEventListener('click', () => {
+      $('load').value = '2';
+      $('units').value = '335';
+      $('amount').value = '424.00';
+      $('subsidy').value = '272.47';
+      $('days').value = '61';
+      $('fppca').value = '236.15@0.02,98.85@0.32';
+      $('recorded-md').value = '2.75';
+      $('md-penalty').value = '337.50';
+      $('advanced-details').open = true;
+      state.scanExtra = { md_penalty: 337.50, recorded_md_kw: 2.75 };
+      clearOcrBadges();
+      showToast('Loaded Sample 2: Multi-Month 335 kWh (61 Days, FPPCA)', 'info');
+      $('bill-form').dispatchEvent(new Event('submit'));
+    });
+
+    $('btn-sample-3').addEventListener('click', () => {
+      $('load').value = '2';
+      $('units').value = '250';
+      $('amount').value = '1855.00';
+      $('subsidy').value = '0';
+      $('days').value = '30';
+      $('fppca').value = '';
+      $('recorded-md').value = '';
+      $('md-penalty').value = '';
+      state.scanExtra = {};
+      clearOcrBadges();
+      showToast('Loaded Sample 3: Overcharged Utility Discrepancy Test', 'warning');
+      $('bill-form').dispatchEvent(new Event('submit'));
+    });
+
+    // Form Submit & Verification Workflow
+    $('bill-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      if (state.isSubmitting) return;
+
+      const submitBtn = $('btn-submit');
+      const submitText = $('btn-submit-text');
+      const submitSpinner = $('submit-spinner');
+      const submitIcon = $('submit-icon');
+
+      state.isSubmitting = true;
+      submitBtn.disabled = true;
+      submitText.textContent = 'Calculating tariff...';
+      submitSpinner.classList.remove('hidden');
+      submitIcon.classList.add('hidden');
+
+      try {
+        const loadVal = parseFloat($('load').value) || 1;
+        const unitsVal = parseFloat($('units').value) || 0;
+        const amountVal = parseFloat($('amount').value) || 0;
+        const subsidyVal = parseFloat($('subsidy').value) || 0;
+        const daysVal = $('days').value ? parseInt($('days').value) : null;
+        const fppcaVal = $('fppca').value.trim();
+        const recordedMdVal = $('recorded-md').value ? parseFloat($('recorded-md').value) : state.scanExtra.recorded_md_kw;
+        const mdPenaltyVal = $('md-penalty').value ? parseFloat($('md-penalty').value) : state.scanExtra.md_penalty;
+
+        // Step 1: Create premises
+        const premRes = await fetch(`/api/premises?label=Domestic&sanctioned_load_kw=${loadVal}`, {
+          method: 'POST'
+        });
+        if (!premRes.ok) throw new Error('Could not initialize premises configuration');
+        const premises = await premRes.json();
+
+        // Step 2: Upload bill record (use user file if present, or create synthetic fallback)
+        const fileToUpload = state.selectedFile || new File(['BillWise Manual Verification Entry'], 'manual_entry.pdf', { type: 'application/pdf' });
+        const fd = new FormData();
+        fd.append('file', fileToUpload);
+
+        const billRes = await fetch(`/api/premises/${premises.id}/bills`, {
+          method: 'POST',
+          body: fd,
+        });
+        if (!billRes.ok) {
+          const err = await billRes.json().catch(() => ({}));
+          throw new Error(err.detail || 'Failed to register bill for verification');
+        }
+        const bill = await billRes.json();
+
+        // Step 3: Run Verification
+        const q = new URLSearchParams({
+          units_kwh: unitsVal,
+          amount_billed: amountVal,
+          subsidy_units: subsidyVal,
+        });
+        if (daysVal) q.set('billing_days', daysVal);
+        if (fppcaVal) q.set('fppca', fppcaVal);
+        if (mdPenaltyVal) q.set('md_penalty', mdPenaltyVal);
+        if (recordedMdVal) q.set('recorded_md_kw', recordedMdVal);
+
+        const verifyRes = await fetch(`/api/bills/${bill.bill_id}/verify?${q}`, {
+          method: 'POST'
+        });
+        if (!verifyRes.ok) {
+          const err = await verifyRes.json().catch(() => ({}));
+          throw new Error(err.detail || 'Tariff calculation failed');
+        }
+        const data = await verifyRes.json();
+
+        renderResults(data, {
+          load: loadVal,
+          units: unitsVal,
+          amount: amountVal,
+          subsidy: subsidyVal,
+          days: daysVal,
+        });
+
+        showToast(data.flagged ? 'Tariff mismatch detected!' : 'Bill verified accurate!', data.flagged ? 'warning' : 'success');
+      } catch (err) {
+        showToast(err.message, 'error');
+      } finally {
+        state.isSubmitting = false;
+        submitBtn.disabled = false;
+        submitText.textContent = 'Verify Electricity Bill';
+        submitSpinner.classList.add('hidden');
+        submitIcon.classList.remove('hidden');
+      }
+    });
+
+    // Render Verification Results
+    function renderResults(data, params) {
+      $('empty-state-card').classList.add('hidden');
+      const resultsContainer = $('results-container');
+      resultsContainer.classList.remove('hidden');
+
+      const isFlagged = data.flagged;
+      const billed = data.billed;
+      const recomputed = data.recomputed;
+      const variance = data.variance;
+
+      // 1. Hero Status Card
+      const heroCard = $('hero-status-card');
+      const heroIcon = $('hero-status-icon');
+      const heroTitle = $('hero-status-title');
+      const heroDesc = $('hero-status-desc');
+      const heroPill = $('hero-variance-pill');
+      const notesContainer = $('result-notes-container');
+
+      if (!isFlagged) {
+        heroCard.className = 'rounded-2xl p-6 shadow-sm border bg-emerald-500/10 border-emerald-500/30 dark:bg-emerald-950/30 dark:border-emerald-800/60';
+        heroIcon.className = 'w-12 h-12 rounded-xl bg-emerald-500 text-white flex items-center justify-center shrink-0 shadow-md shadow-emerald-500/20';
+        heroIcon.innerHTML = '<svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>';
+        heroTitle.textContent = 'Bill Verified Accurate';
+        heroTitle.className = 'text-lg font-bold text-emerald-900 dark:text-emerald-100';
+        heroDesc.textContent = data.message || 'The billed amount strictly aligns with regulatory tariff orders within tolerance.';
+        heroDesc.className = 'text-xs text-emerald-700 dark:text-emerald-300 mt-0.5';
+
+        heroPill.className = 'inline-flex items-center px-3.5 py-1.5 rounded-full font-mono text-xs font-bold shrink-0 bg-emerald-100 dark:bg-emerald-900 text-emerald-800 dark:text-emerald-200 border border-emerald-300 dark:border-emerald-700';
+        heroPill.textContent = '✓ 0.00% Variance';
+      } else {
+        heroCard.className = 'rounded-2xl p-6 shadow-sm border bg-amber-500/10 border-amber-500/30 dark:bg-amber-950/30 dark:border-amber-800/60';
+        heroIcon.className = 'w-12 h-12 rounded-xl bg-amber-500 text-white flex items-center justify-center shrink-0 shadow-md shadow-amber-500/20';
+        heroIcon.innerHTML = '<svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>';
+        heroTitle.textContent = variance > 0 ? 'Possible Utility Overcharge Detected' : 'Undercharge / Discrepancy Detected';
+        heroTitle.className = 'text-lg font-bold text-amber-900 dark:text-amber-100';
+        heroDesc.textContent = data.message || 'There is a discrepancy between the billed amount and official tariff calculation.';
+        heroDesc.className = 'text-xs text-amber-700 dark:text-amber-300 mt-0.5';
+
+        heroPill.className = 'inline-flex items-center px-3.5 py-1.5 rounded-full font-mono text-xs font-bold shrink-0 bg-amber-100 dark:bg-amber-900 text-amber-800 dark:text-amber-200 border border-amber-300 dark:border-amber-700';
+        heroPill.textContent = (variance > 0 ? '+' : '') + rs(variance) + ' Discrepancy';
+      }
+
+      // Notes
+      if (data.notes && data.notes.length > 0) {
+        notesContainer.innerHTML = data.notes.map(n => `<div class="text-slate-600 dark:text-slate-300 flex items-start gap-1.5"><span class="text-amber-500 font-bold">•</span><span>${esc(n)}</span></div>`).join('');
+        notesContainer.classList.remove('hidden');
+      } else {
+        notesContainer.classList.add('hidden');
+      }
+
+      // 2. Metrics Numbers
+      $('metric-billed').textContent = Number(billed).toFixed(2);
+      $('metric-recomputed').textContent = Number(recomputed).toFixed(2);
+      
+      const metricVarianceEl = $('metric-variance');
+      metricVarianceEl.textContent = Number(Math.abs(variance)).toFixed(2);
+      metricVarianceEl.className = `text-2xl font-extrabold font-mono ${isFlagged ? (variance > 0 ? 'text-red-500' : 'text-amber-500') : 'text-emerald-500'}`;
+      
+      $('metric-variance-note').textContent = isFlagged 
+        ? (variance > 0 ? `Overcharge (+${((variance / (recomputed || 1)) * 100).toFixed(1)}%)` : `Undercharge (-${((Math.abs(variance) / (recomputed || 1)) * 100).toFixed(1)}%)`)
+        : 'Exact tariff match (0.00%)';
+
+      // 3. Itemized Tariff Breakdown
+      const tbody = $('breakdown-tbody');
+      tbody.innerHTML = '';
+
+      if (data.breakdown && data.breakdown.gross && data.breakdown.gross.line_items) {
+        data.breakdown.gross.line_items.forEach(item => {
+          const tr = document.createElement('tr');
+          const isTotal = item.type === 'total';
+          tr.className = isTotal ? 'font-bold bg-slate-50/50 dark:bg-slate-800/40 text-slate-900 dark:text-white' : 'hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition';
+          tr.innerHTML = `
+            <td class="py-2.5 pr-4">
+              <span class="font-medium text-slate-800 dark:text-slate-200">${esc(item.description)}</span>
+              <span class="text-[10px] text-slate-400 block font-mono capitalize">${esc(item.type)}</span>
+            </td>
+            <td class="py-2.5 px-3 text-right font-mono text-slate-600 dark:text-slate-400">${item.quantity != null ? Number(item.quantity).toFixed(2) : '—'}</td>
+            <td class="py-2.5 px-3 text-right font-mono text-slate-600 dark:text-slate-400">${item.rate != null ? '₹' + Number(item.rate).toFixed(2) : '—'}</td>
+            <td class="py-2.5 pl-4 text-right font-mono font-bold text-slate-900 dark:text-white">${rs(item.amount)}</td>
+          `;
+          tbody.appendChild(tr);
+        });
+
+        // Add Gross Subtotal Row
+        const grossTr = document.createElement('tr');
+        grossTr.className = 'font-bold bg-slate-50 dark:bg-slate-800/50 border-t border-slate-200 dark:border-slate-700';
+        grossTr.innerHTML = `
+          <td colspan="3" class="py-2.5 pr-4 text-slate-700 dark:text-slate-300">Gross Tariff Total (before subsidy)</td>
+          <td class="py-2.5 pl-4 text-right font-mono font-extrabold text-slate-900 dark:text-white">${rs(data.breakdown.gross.total)}</td>
+        `;
+        tbody.appendChild(grossTr);
+      }
+
+      // Subsidy Breakdown Callout
+      const subsidyBox = $('subsidy-breakdown-box');
+      if (data.breakdown && data.breakdown.subsidy && data.breakdown.subsidy.total > 0) {
+        subsidyBox.classList.remove('hidden');
+        $('subsidy-breakdown-total').textContent = `- ${rs(data.breakdown.subsidy.total)}`;
+        $('subsidy-breakdown-text').textContent = `Full subsidy bill credit on ${data.breakdown.subsidy.units} eligible units deducted under Karnataka Gruha Jyothi scheme, leaving Net Recomputed payable of ${rs(data.recomputed)}.`;
+      } else {
+        subsidyBox.classList.add('hidden');
+      }
+
+      // 4. Savings Coach Section
+      const coach = data.coach;
+      const summaryBox = $('coach-summary-box');
+      const tipsGrid = $('coach-tips-grid');
+      const marginalPill = $('coach-marginal-pill');
+      const marginalVal = $('coach-marginal-val');
+
+      if (coach) {
+        if (coach.marginal_cost_per_unit != null) {
+          marginalVal.textContent = rs(coach.marginal_cost_per_unit);
+          marginalPill.classList.remove('hidden');
+        } else {
+          marginalPill.classList.add('hidden');
+        }
+
+        // Summary statements
+        summaryBox.innerHTML = (coach.summary || []).map(s => `
+          <div class="flex items-start gap-2">
+            <span class="text-brand-500 font-bold shrink-0">▸</span>
+            <span>${esc(s)}</span>
+          </div>
+        `).join('');
+
+        // Actionable Tips
+        tipsGrid.innerHTML = (coach.tips || []).map(tip => `
+          <div class="p-3.5 rounded-xl bg-slate-50/80 dark:bg-slate-800/50 border border-slate-200/80 dark:border-slate-700/60 flex flex-col justify-between">
+            <div>
+              <div class="flex items-start justify-between gap-2 mb-1.5">
+                <h4 class="text-xs font-bold text-slate-900 dark:text-slate-100">${esc(tip.title)}</h4>
+                ${tip.saving_inr != null ? `<span class="shrink-0 px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800">Save ${rs(tip.saving_inr)}</span>` : ''}
+              </div>
+              <p class="text-[11px] text-slate-600 dark:text-slate-400 leading-relaxed">${esc(tip.text)}</p>
+            </div>
+          </div>
+        `).join('');
+      }
+
+      // Scroll smoothly to results
+      resultsContainer.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+
+    function resetApp() {
+      resetFileInput();
+      $('units').value = '';
+      $('amount').value = '';
+      $('subsidy').value = '0';
+      $('days').value = '';
+      $('fppca').value = '';
+      $('recorded-md').value = '';
+      $('md-penalty').value = '';
+      $('advanced-details').open = false;
+      state.scanExtra = {};
+      $('results-container').classList.add('hidden');
+      $('empty-state-card').classList.remove('hidden');
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  </script>
 </body>
 </html>
