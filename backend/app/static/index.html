@@ -6,6 +6,14 @@
   <title>BillWise — Electricity Bill Verification & Energy Savings Engine</title>
   <!-- Tailwind CSS CDN -->
   <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Tesseract.js Neural OCR & PDF.js -->
+  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+  <script>
+    if (window.pdfjsLib) {
+      pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+    }
+  </script>
   <script>
     tailwind.config = {
       darkMode: 'class',
@@ -206,12 +214,21 @@
               </span>
               <span id="ocr-status-text" class="font-medium text-slate-700 dark:text-slate-300">Reading bill details...</span>
             </div>
+            <!-- Progress Bar -->
+            <div id="ocr-progress-container" class="w-full bg-slate-200 dark:bg-slate-700 h-1.5 rounded-full overflow-hidden mt-2 hidden">
+              <div id="ocr-progress-bar" class="bg-brand-500 h-full w-0 transition-all duration-200"></div>
+            </div>
             <!-- Missing fields chip list -->
             <div id="ocr-missing-chips" class="mt-2 flex flex-wrap gap-1.5 hidden">
               <span class="text-amber-600 dark:text-amber-400 font-semibold text-[11px]">Please enter manually:</span>
             </div>
             <!-- Warnings banner -->
             <div id="ocr-warning-box" class="mt-2 text-amber-700 dark:text-amber-300 text-[11px] bg-amber-50 dark:bg-amber-950/40 p-2 rounded border border-amber-200 dark:border-amber-800 hidden"></div>
+            <!-- Raw OCR preview accordion -->
+            <details id="ocr-raw-details" class="mt-2.5 pt-2 border-t border-slate-200/80 dark:border-slate-700/60 hidden">
+              <summary class="cursor-pointer text-[11px] font-semibold text-slate-500 dark:text-slate-400 hover:text-brand-600 dark:hover:text-brand-400">Show Recognized OCR Text</summary>
+              <pre id="ocr-raw-text" class="mt-1.5 p-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 font-mono text-[10px] text-slate-700 dark:text-slate-300 max-h-36 overflow-y-auto whitespace-pre-wrap"></pre>
+            </details>
           </div>
 
           <!-- Form Details -->
@@ -613,19 +630,403 @@
     async function checkHealth() {
       const dot = $('health-dot'), txt = $('health-text');
       try {
-        const r = await fetch('/health');
-        if (r.ok) {
+        const r = await fetch('/health', { signal: AbortSignal.timeout(2000) });
+        const ctype = r.headers.get('content-type') || '';
+        if (r.ok && ctype.includes('application/json')) {
           dot.className = 'w-2 h-2 rounded-full bg-emerald-500';
-          txt.textContent = 'API Ready';
+          txt.textContent = 'FastAPI Cloud Run';
+          return true;
         } else {
-          throw new Error();
+          dot.className = 'w-2 h-2 rounded-full bg-emerald-500';
+          txt.textContent = 'Firebase Cloud Ready';
+          return false;
         }
       } catch {
-        dot.className = 'w-2 h-2 rounded-full bg-red-500';
-        txt.textContent = 'Offline';
+        dot.className = 'w-2 h-2 rounded-full bg-emerald-500';
+        txt.textContent = 'Browser Neural Engine';
+        return false;
       }
     }
     checkHealth();
+
+    // ==========================================
+    // CLIENT-SIDE OCR ENGINE & PARSER
+    // ==========================================
+    function num(s) {
+      if (!s) return 0;
+      s = s.trim();
+      if (/,\d{2}$/.test(s)) {
+        s = s.slice(0, -3) + '.' + s.slice(-2);
+      }
+      return parseFloat(s.replace(/,/g, ''));
+    }
+
+    function firstMatch(patterns, text) {
+      for (const p of patterns) {
+        const m = text.match(p);
+        if (m) return m;
+      }
+      return null;
+    }
+
+    const MONEY_PAT = "(\\d[\\d,]*[.,]\\d{2})";
+    const QTY_PAT = "(\\d[\\d,]*\\.?\\d*)";
+
+    function parseBillText(text) {
+      const out = {};
+      const warnings = [];
+
+      // Billing period & days
+      const dateM = text.match(/(\d{2}\/\d{2}\/\d{4})\D{1,4}(\d{2}\/\d{2}\/\d{4})/);
+      if (dateM) {
+        out.billing_start = dateM[1];
+        out.billing_end = dateM[2];
+        try {
+          const p1 = dateM[1].split('/'), p2 = dateM[2].split('/');
+          const d1 = new Date(p1[2], p1[1] - 1, p1[0]);
+          const d2 = new Date(p2[2], p2[1] - 1, p2[0]);
+          const diffDays = Math.round((d2 - d1) / (1000 * 60 * 60 * 24));
+          if (diffDays > 0) out.billing_days = diffDays;
+        } catch (e) {}
+      }
+
+      // Units
+      const unitsM = firstMatch([new RegExp("Consumption\\s*\\(?Units\\)?\\D{0,8}" + QTY_PAT, "i")], text);
+      if (unitsM) {
+        out.units_kwh = num(unitsM[1]);
+      }
+
+      // Meter readings cross check
+      const pres = firstMatch([/Pres\W+\w+\W+(\d{3,7})\b/i], text);
+      const prev = firstMatch([/Pr[eo][vw]\W+\w+\W+(\d{3,7})\b/i], text);
+      const constM = firstMatch([/Constant\D{0,4}(\d+)/i], text);
+      if (pres && prev && constM && parseInt(constM[1], 10) === 1) {
+        const pVal = parseInt(pres[1], 10), prVal = parseInt(prev[1], 10);
+        if (pVal > prVal) {
+          const diff = pVal - prVal;
+          if (out.units_kwh == null) {
+            out.units_kwh = diff;
+          } else if (Math.abs(out.units_kwh - diff) > 0.5) {
+            warnings.push(`Printed units read as ${out.units_kwh}, but meter readings give ${diff}. Using ${diff}.`);
+            out.units_kwh = diff;
+          }
+        }
+      }
+
+      // Sanctioned Load
+      const loadM = firstMatch([/Load\s*(\d+\.?\d*)\s*KW/i, /(\d+\.?\d*)\s*KW\s+\d+\.?\d*\s+\d+\.\d{2}/i], text);
+      if (loadM) {
+        out.sanctioned_load_kw = num(loadM[1]);
+      }
+
+      // Amount billed ("Bill Amount (1-2)" net)
+      const amtM = firstMatch([new RegExp("Am\\w{2,4}\\s*\\(\\s*\\w\\s*-\\s*\\w\\s*\\)\\s*" + MONEY_PAT, "i")], text);
+      if (amtM) {
+        out.amount_billed = num(amtM[1]);
+      } else {
+        const st1 = firstMatch([new RegExp("Sub-?\\s*Total-?\\s*1\\D{0,10}" + MONEY_PAT, "i")], text);
+        const st2 = firstMatch([new RegExp("Sub-?\\s*Total-?\\s*2\\D{0,10}" + MONEY_PAT, "i")], text);
+        if (st1 && st2) {
+          out.amount_billed = Math.round((num(st1[1]) - num(st2[1])) * 100) / 100;
+        } else if (st1) {
+          out.amount_billed = num(st1[1]);
+        }
+      }
+
+      // Recorded MD
+      const rmd = firstMatch([/Recorded\s*M\w{1,2}\D{0,4}(\d+\.?\d*)/i], text);
+      if (rmd) out.recorded_md_kw = num(rmd[1]);
+
+      // Penalty
+      const pen = firstMatch([new RegExp("Load\\W{0,3}\\w{0,4}\\W{0,2}P[ea]n\\w*\\s*" + MONEY_PAT, "i")], text);
+      if (pen && num(pen[1]) > 0) out.md_penalty = num(pen[1]);
+
+      // Subsidy units
+      const subM = firstMatch([new RegExp("Eligible\\s*\\w{2,4}\\s*subsid\\w*\\D{0,4}" + QTY_PAT, "i")], text);
+      if (subM) {
+        out.subsidy_units = num(subM[1]);
+      } else {
+        const c = firstMatch([new RegExp("Un\\w{2,3}\\s*charge\\w*\\D{0,4}" + QTY_PAT, "i")], text);
+        const e = firstMatch([new RegExp("Entit\\S*\\s*Un\\w{2,3}\\D{0,4}" + QTY_PAT, "i")], text);
+        if (c && out.units_kwh != null && num(c[1]) <= out.units_kwh) {
+          out.subsidy_units = Math.round((out.units_kwh - num(c[1])) * 100) / 100;
+        } else if (e) {
+          const ent = num(e[1]);
+          const days = out.billing_days;
+          out.subsidy_units = days && days > 45 ? Math.round((ent * days / 30) * 100) / 100 : ent;
+        } else {
+          out.subsidy_units = 0.0;
+        }
+      }
+
+      out.warnings = warnings;
+      out.missing = ["units_kwh", "sanctioned_load_kw", "amount_billed"].filter(k => out[k] == null);
+      return out;
+    }
+
+    // ==========================================
+    // CLIENT-SIDE TARIFF ENGINE & SAVINGS COACH
+    // ==========================================
+    function clientComputeBill(units, sanctionedLoadKw, billingDays, fppcaSegments) {
+      if (units < 0) throw new Error("Units must be >= 0");
+      const lineItems = [];
+      let energyTotal = 0;
+      let otherTotal = 0;
+
+      const multi = Boolean(billingDays && billingDays > 45);
+      const fixedRate = 150.0;
+      let fixedAmt = 0;
+      let billedKw = sanctionedLoadKw;
+      let label = "Fixed charges";
+
+      if (multi) {
+        fixedAmt = Math.round(fixedRate * sanctionedLoadKw * billingDays / 30 * 100) / 100;
+        billedKw = Math.round(sanctionedLoadKw * billingDays / 30 * 100) / 100;
+        label = `Fixed charges (${billingDays} days)`;
+      } else {
+        fixedAmt = Math.round(fixedRate * sanctionedLoadKw * 100) / 100;
+      }
+      lineItems.push({ type: "fixed", description: label, quantity: billedKw, rate: fixedRate, amount: fixedAmt });
+      otherTotal += fixedAmt;
+
+      // Energy charges (BESCOM LT-1 flat slab Rs 5.80)
+      const energyAmt = Math.round(units * 5.80 * 100) / 100;
+      lineItems.push({ type: "energy", description: "Energy charges", quantity: units, rate: 5.80, amount: energyAmt });
+      energyTotal += energyAmt;
+
+      // FPPCA fuel adjustment
+      if (fppcaSegments && fppcaSegments.length > 0) {
+        const segTotal = fppcaSegments.reduce((acc, s) => acc + s[0], 0);
+        for (const [sUnits, sRate] of fppcaSegments) {
+          const part = Math.round(units * sUnits / segTotal * 100) / 100;
+          const amt = Math.round(part * sRate * 100) / 100;
+          lineItems.push({ type: "fuel_adj", description: `FPPCA charges @ ${sRate}`, quantity: part, rate: sRate, amount: amt });
+          otherTotal += amt;
+        }
+      } else {
+        const fppcaAmt = Math.round(units * -0.23 * 100) / 100;
+        lineItems.push({ type: "fuel_adj", description: "FPPCA charges", quantity: units, rate: -0.23, amount: fppcaAmt });
+        otherTotal += fppcaAmt;
+      }
+
+      // P&G Surcharge
+      const pgAmt = Math.round(units * 0.35 * 100) / 100;
+      lineItems.push({ type: "surcharge", description: "P&G surcharge (GoK portion)", quantity: units, rate: 0.35, amount: pgAmt });
+      otherTotal += pgAmt;
+
+      // Tax 9% on energy charges
+      const taxAmt = Math.round(energyTotal * 0.09 * 100) / 100;
+      lineItems.push({ type: "tax", description: "Tax @ 9% on energy", quantity: null, rate: 9.0, amount: taxAmt });
+
+      const total = Math.round((energyTotal + otherTotal + taxAmt) * 100) / 100;
+      return { units, lineItems, total, energyTotal, otherTotal, tax: taxAmt };
+    }
+
+    function clientComputeNetBill(units, loadKw, subsidyUnits = 0, billingDays = null, fppcaSegments = null) {
+      const gross = clientComputeBill(units, loadKw, billingDays, fppcaSegments);
+      if (subsidyUnits <= 0) {
+        return { gross, subsidy: null, net: gross.total };
+      }
+      const subUnits = Math.min(subsidyUnits, units);
+      const sub = clientComputeBill(subUnits, loadKw, billingDays, fppcaSegments);
+      return { gross, subsidy: sub, net: Math.round((gross.total - sub.total) * 100) / 100 };
+    }
+
+    function clientVerifyBill({ units_kwh, sanctioned_load_kw, amount_billed, subsidy_units = 0, billing_days = null, fppca = null, md_penalty = null, recorded_md_kw = null }) {
+      let fppcaSegments = null;
+      if (fppca && fppca.trim()) {
+        fppcaSegments = [];
+        for (const part of fppca.trim().split(/[,\s;]+/)) {
+          if (!part) continue;
+          const [u, r] = part.split('@');
+          if (u && r) fppcaSegments.push([parseFloat(u), parseFloat(r)]);
+        }
+      }
+
+      const netRes = clientComputeNetBill(units_kwh, sanctioned_load_kw, subsidy_units, billing_days, fppcaSegments);
+      const recomputed = netRes.net;
+      const billed = Math.round(amount_billed * 100) / 100;
+      const variance = Math.round((billed - recomputed) * 100) / 100;
+      const pct = recomputed ? (Math.abs(variance) / recomputed * 100) : (variance === 0 ? 0 : 100);
+      const flagged = Math.abs(variance) > 5.0 && pct > 1.0;
+
+      let message = "Bill matches the tariff within tolerance.";
+      if (flagged) {
+        message = variance > 0
+          ? `Possible overcharge of Rs ${variance.toFixed(2)} versus official tariff.`
+          : `Billed amount is Rs ${Math.abs(variance).toFixed(2)} lower than the tariff calculation.`;
+      }
+
+      const notes = [];
+      if (billing_days && billing_days > 45 && (!fppcaSegments || fppcaSegments.length === 0)) {
+        notes.push("This looks like a multi-month bill. Enter the FPPCA lines (units@rate) in the advanced box for an accurate check.");
+      }
+
+      // Savings Coach Calculations
+      const days = billing_days || 30;
+      const perDay = units_kwh / days;
+      const netNext = clientComputeNetBill(units_kwh + 1, sanctioned_load_kw, subsidy_units, billing_days, fppcaSegments).net;
+      const marginal = Math.max(0, Math.round((netNext - recomputed) * 100) / 100);
+
+      const summary = [`You used ${units_kwh} units in ${days} days (about ${perDay.toFixed(1)} units a day).`];
+      if (subsidy_units > 0) {
+        const covered = Math.min(units_kwh, subsidy_units);
+        summary.push(`${covered} of those units were covered by the Gruha Jyothi subsidy, so you were charged for ${Math.max(units_kwh - covered, 0)}.`);
+        summary.push(`The full bill would have been Rs ${netRes.gross.total.toFixed(2)}. The subsidy took off Rs ${(netRes.subsidy ? netRes.subsidy.total : 0).toFixed(2)}, leaving Rs ${recomputed.toFixed(2)}.`);
+      } else {
+        summary.push(`No subsidy applies to this bill, so you pay Rs ${recomputed.toFixed(2)}.`);
+      }
+      if (marginal > 0) {
+        summary.push(`Each extra unit costs you about Rs ${marginal.toFixed(2)} (energy, surcharges and tax together).`);
+      }
+
+      const tips = [];
+      if (flagged) {
+        tips.push({
+          title: "Your bill may be wrong",
+          text: `Your bill differs from our calculation by Rs ${Math.abs(variance).toFixed(2)}. Ask your BESCOM section office for the itemised calculation and meter-reading history, and confirm that your tariff category and sanctioned load are correct.`
+        });
+      }
+
+      const CO2_KG_PER_KWH = 0.71;
+      if (subsidy_units > 0 && units_kwh > subsidy_units) {
+        const over = units_kwh - subsidy_units;
+        const netAtSub = clientComputeNetBill(subsidy_units, sanctioned_load_kw, subsidy_units, billing_days, fppcaSegments).net;
+        const saving = Math.round((recomputed - netAtSub) * 100) / 100;
+        const overPerDay = over / days;
+        const allowance = subsidy_units / days;
+        tips.push({
+          title: `Stay within your free limit to save up to Rs ${saving.toFixed(2)}`,
+          text: `Your free allowance is about ${allowance.toFixed(1)} units a day and you averaged ${perDay.toFixed(1)}. You went ${over} units over. Cutting ${overPerDay.toFixed(1)} units a day is roughly ${Math.round(overPerDay / 1.5 * 60)} mins less of AC or ${Math.round(overPerDay / 2.0 * 60)} mins less of water heater each day. That avoids ~${Math.round(over * CO2_KG_PER_KWH)} kg of CO2.`,
+          saving_inr: saving
+        });
+      } else if (subsidy_units > 0) {
+        tips.push({
+          title: "You are inside your free limit",
+          text: `You used ${units_kwh} of ${subsidy_units} free units. Keep usage below the limit to keep the electricity charge at zero.`
+        });
+      } else if (units_kwh > 0) {
+        const cut = units_kwh * 0.10;
+        const netAtCut = clientComputeNetBill(units_kwh - cut, sanctioned_load_kw, subsidy_units, billing_days, fppcaSegments).net;
+        const saving = Math.round((recomputed - netAtCut) * 100) / 100;
+        tips.push({
+          title: `A 10% cut would save about Rs ${saving.toFixed(2)}`,
+          text: `Cutting ${Math.round(cut)} units (10%) saves roughly Rs ${saving.toFixed(2)} and about ${Math.round(cut * CO2_KG_PER_KWH)} kg of CO2. Start with high-draw appliances: AC, geysers, and standby power.`,
+          saving_inr: saving
+        });
+      }
+
+      if (md_penalty && md_penalty > 0) {
+        const peak = (recorded_md_kw && recorded_md_kw > sanctioned_load_kw)
+          ? `The meter recorded a peak of ${recorded_md_kw} kW, above your sanctioned load of ${sanctioned_load_kw} kW. ` : '';
+        tips.push({
+          title: `Peak-demand penalty of Rs ${md_penalty.toFixed(2)}`,
+          text: `This bill includes a penalty of Rs ${md_penalty.toFixed(2)}. ${peak}Avoid running multiple high-draw appliances simultaneously.`,
+          saving_inr: md_penalty
+        });
+      }
+
+      if (billing_days && billing_days > 45) {
+        tips.push({
+          title: "This is a multi-month bill",
+          text: `It covers ${billing_days} days, so the fixed charge and your free units are scaled up. Ask BESCOM to read your meter monthly.`
+        });
+      }
+
+      return {
+        recomputed,
+        billed,
+        variance,
+        flagged,
+        message,
+        notes,
+        coach: {
+          summary,
+          tips,
+          marginal_cost_per_unit: marginal,
+          gross: netRes.gross.total,
+          subsidy: netRes.subsidy ? netRes.subsidy.total : 0,
+          net: recomputed
+        },
+        breakdown: {
+          gross: netRes.gross,
+          subsidy: netRes.subsidy,
+          net: recomputed
+        }
+      };
+    }
+
+    // ==========================================
+    // NEURAL OCR PROCESSING (Image & PDF)
+    // ==========================================
+    async function extractTextFromImageOrPdf(file, onProgress) {
+      // PDF Parsing
+      if (file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')) {
+        if (!window.pdfjsLib) {
+          throw new Error('PDF reader engine is still initializing. Please re-try.');
+        }
+        onProgress('Rendering PDF page...', 15);
+        const arrayBuffer = await file.arrayBuffer();
+        const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+        const page = await pdf.getPage(1);
+        const viewport = page.getViewport({ scale: 2.2 });
+        const canvas = document.createElement('canvas');
+        canvas.width = viewport.width;
+        canvas.height = viewport.height;
+        const ctx = canvas.getContext('2d');
+        await page.render({ canvasContext: ctx, viewport }).promise;
+        return await runTesseractOnCanvas(canvas, onProgress);
+      }
+
+      // Image Parsing
+      onProgress('Loading bill image...', 15);
+      const img = new Image();
+      const url = URL.createObjectURL(file);
+      await new Promise((res, rej) => {
+        img.onload = res;
+        img.onerror = () => rej(new Error('Failed to read image data'));
+        img.src = url;
+      });
+      URL.revokeObjectURL(url);
+
+      onProgress('Enhancing image contrast & resolution...', 25);
+      const scale = Math.max(1, 1400 / img.width);
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.round(img.width * scale);
+      canvas.height = Math.round(img.height * scale);
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+
+      // Contrast enhancement & grayscale
+      const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      const d = imgData.data;
+      for (let i = 0; i < d.length; i += 4) {
+        const gray = 0.299 * d[i] + 0.587 * d[i+1] + 0.114 * d[i+2];
+        d[i] = gray; d[i+1] = gray; d[i+2] = gray;
+      }
+      ctx.putImageData(imgData, 0, 0);
+
+      return await runTesseractOnCanvas(canvas, onProgress);
+    }
+
+    async function runTesseractOnCanvas(canvas, onProgress) {
+      if (!window.Tesseract) {
+        throw new Error('Neural OCR library is loading. Please verify internet connection.');
+      }
+      const result = await Tesseract.recognize(canvas, 'eng', {
+        logger: m => {
+          if (m.status === 'recognizing text') {
+            const pct = Math.round((m.progress || 0) * 100);
+            onProgress(`Scanning bill numbers (${pct}%)...`, pct);
+          } else if (m.status.includes('loading')) {
+            onProgress('Downloading OCR neural weights...', 30);
+          } else if (m.status.includes('initializing')) {
+            onProgress('Initializing OCR engine...', 40);
+          }
+        }
+      });
+      return result.data.text;
+    }
 
     // Dark/Light Theme Handler
     const themeBtn = $('theme-toggle');
@@ -741,11 +1142,10 @@
         reader.onload = e => previewImg.src = e.target.result;
         reader.readAsDataURL(file);
         triggerOcrScan(file);
-      } else if (file.type === 'application/pdf') {
+      } else if (file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')) {
         previewImg.classList.add('hidden');
         previewPdfIcon.classList.remove('hidden');
-        showToast('PDF file uploaded. Please review or enter your bill numbers.', 'info');
-        $('ocr-status-card').classList.add('hidden');
+        triggerOcrScan(file);
       } else {
         showToast('Please upload a JPG, PNG, or PDF bill file.', 'warning');
       }
@@ -759,26 +1159,53 @@
       const text = $('ocr-status-text');
       const missingChips = $('ocr-missing-chips');
       const warnBox = $('ocr-warning-box');
+      const progressContainer = $('ocr-progress-container');
+      const progressBar = $('ocr-progress-bar');
+      const rawDetails = $('ocr-raw-details');
+      const rawTextEl = $('ocr-raw-text');
 
       statusCard.classList.remove('hidden');
       spinner.classList.remove('hidden');
       icon.classList.add('hidden');
-      text.textContent = 'Running Tesseract OCR extraction...';
+      text.textContent = 'Initializing AI OCR scanner...';
+      if (progressContainer) progressContainer.classList.remove('hidden');
+      if (progressBar) progressBar.style.width = '8%';
       missingChips.classList.add('hidden');
       warnBox.classList.add('hidden');
+      if (rawDetails) rawDetails.classList.add('hidden');
       clearOcrBadges();
 
       try {
-        const fd = new FormData();
-        fd.append('file', file);
-        const r = await fetch('/api/scan', { method: 'POST', body: fd });
-        if (!r.ok) {
-          const errData = await r.json().catch(() => ({}));
-          throw new Error(errData.detail || 'OCR engine unavailable');
-        }
-        const d = await r.json();
+        let d = null;
+        let rawOcrText = '';
 
-        // Populate fields if read
+        // 1. Check if backend /api/scan is actively available and returns genuine JSON
+        let backendSucceeded = false;
+        try {
+          const fd = new FormData();
+          fd.append('file', file);
+          const probe = await fetch('/api/scan', { method: 'POST', body: fd, signal: AbortSignal.timeout(3000) });
+          const contentType = probe.headers.get('content-type') || '';
+          if (probe.ok && contentType.includes('application/json')) {
+            d = await probe.json();
+            backendSucceeded = true;
+          }
+        } catch (e) {
+          // Backend is either offline or static CDN rewrite returned HTML
+        }
+
+        // 2. If backend is not available, execute browser-native Neural OCR
+        if (!backendSucceeded) {
+          rawOcrText = await extractTextFromImageOrPdf(file, (msg, pct) => {
+            text.textContent = msg;
+            if (progressBar && pct != null) progressBar.style.width = `${Math.max(8, pct)}%`;
+          });
+          d = parseBillText(rawOcrText);
+        }
+
+        if (progressBar) progressBar.style.width = '100%';
+
+        // 3. Populate form fields
         let filledCount = 0;
         if (d.sanctioned_load_kw != null) {
           $('load').value = d.sanctioned_load_kw;
@@ -818,18 +1245,24 @@
           recorded_md_kw: d.recorded_md_kw,
         };
 
-        // Update OCR Status Card
+        // Update UI
         spinner.classList.add('hidden');
         icon.classList.remove('hidden');
-        text.textContent = `Extracted ${filledCount} field${filledCount === 1 ? '' : 's'} from bill photo.`;
+        if (progressContainer) progressContainer.classList.add('hidden');
+        text.textContent = `Scanned successfully! Detected ${filledCount} field${filledCount === 1 ? '' : 's'} from bill.`;
+
+        if (rawOcrText && rawDetails && rawTextEl) {
+          rawTextEl.textContent = rawOcrText.trim();
+          rawDetails.classList.remove('hidden');
+        }
 
         // Missing fields notification
         if (d.missing && d.missing.length > 0) {
-          missingChips.innerHTML = '<span class="text-amber-600 dark:text-amber-400 font-semibold text-[11px]">Missing:</span>';
+          missingChips.innerHTML = '<span class="text-amber-600 dark:text-amber-400 font-semibold text-[11px]">Please verify or enter:</span>';
           d.missing.forEach(m => {
             const chip = document.createElement('span');
             chip.className = 'px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300 font-mono text-[10px]';
-            chip.textContent = m.replace('_', ' ');
+            chip.textContent = m.replace(/_/g, ' ');
             missingChips.appendChild(chip);
           });
           missingChips.classList.remove('hidden');
@@ -841,11 +1274,12 @@
           warnBox.classList.remove('hidden');
         }
 
-        showToast(`OCR successfully detected ${filledCount} bill values!`, 'success');
+        showToast(`OCR successfully extracted ${filledCount} bill values!`, 'success');
       } catch (err) {
         spinner.classList.add('hidden');
-        text.textContent = `OCR notice: ${err.message}. Please verify numbers manually.`;
-        showToast('Photo OCR failed or was inconclusive. Please type in values.', 'warning');
+        if (progressContainer) progressContainer.classList.add('hidden');
+        text.textContent = `OCR note: ${err.message}. Please verify numbers manually.`;
+        showToast('Photo scan was inconclusive. Please type in values directly.', 'warning');
       }
     }
 
@@ -922,47 +1356,64 @@
         const recordedMdVal = $('recorded-md').value ? parseFloat($('recorded-md').value) : state.scanExtra.recorded_md_kw;
         const mdPenaltyVal = $('md-penalty').value ? parseFloat($('md-penalty').value) : state.scanExtra.md_penalty;
 
-        // Step 1: Create premises
-        const premRes = await fetch(`/api/premises?label=Domestic&sanctioned_load_kw=${loadVal}`, {
-          method: 'POST'
-        });
-        if (!premRes.ok) throw new Error('Could not initialize premises configuration');
-        const premises = await premRes.json();
+        let data = null;
 
-        // Step 2: Upload bill record (use user file if present, or create synthetic fallback)
-        const fileToUpload = state.selectedFile || new File(['BillWise Manual Verification Entry'], 'manual_entry.pdf', { type: 'application/pdf' });
-        const fd = new FormData();
-        fd.append('file', fileToUpload);
+        // Check if backend API is genuine JSON
+        let backendAvailable = false;
+        try {
+          const probe = await fetch('/health', { signal: AbortSignal.timeout(2000) });
+          const ctype = probe.headers.get('content-type') || '';
+          if (probe.ok && ctype.includes('application/json')) {
+            backendAvailable = true;
+          }
+        } catch (e) {}
 
-        const billRes = await fetch(`/api/premises/${premises.id}/bills`, {
-          method: 'POST',
-          body: fd,
-        });
-        if (!billRes.ok) {
-          const err = await billRes.json().catch(() => ({}));
-          throw new Error(err.detail || 'Failed to register bill for verification');
+        if (backendAvailable) {
+          // Call backend API
+          const premRes = await fetch(`/api/premises?label=Domestic&sanctioned_load_kw=${loadVal}`, { method: 'POST' });
+          if (!premRes.ok) throw new Error('Could not initialize premises configuration');
+          const premises = await premRes.json();
+
+          const fileToUpload = state.selectedFile || new File(['BillWise Manual Verification Entry'], 'manual_entry.pdf', { type: 'application/pdf' });
+          const fd = new FormData();
+          fd.append('file', fileToUpload);
+
+          const billRes = await fetch(`/api/premises/${premises.id}/bills`, { method: 'POST', body: fd });
+          if (!billRes.ok) {
+            const err = await billRes.json().catch(() => ({}));
+            throw new Error(err.detail || 'Failed to register bill for verification');
+          }
+          const bill = await billRes.json();
+
+          const q = new URLSearchParams({
+            units_kwh: unitsVal,
+            amount_billed: amountVal,
+            subsidy_units: subsidyVal,
+          });
+          if (daysVal) q.set('billing_days', daysVal);
+          if (fppcaVal) q.set('fppca', fppcaVal);
+          if (mdPenaltyVal) q.set('md_penalty', mdPenaltyVal);
+          if (recordedMdVal) q.set('recorded_md_kw', recordedMdVal);
+
+          const verifyRes = await fetch(`/api/bills/${bill.bill_id}/verify?${q}`, { method: 'POST' });
+          if (!verifyRes.ok) {
+            const err = await verifyRes.json().catch(() => ({}));
+            throw new Error(err.detail || 'Tariff calculation failed');
+          }
+          data = await verifyRes.json();
+        } else {
+          // Execute Instant Client-Side Tariff Engine & Coach
+          data = clientVerifyBill({
+            units_kwh: unitsVal,
+            sanctioned_load_kw: loadVal,
+            amount_billed: amountVal,
+            subsidy_units: subsidyVal,
+            billing_days: daysVal,
+            fppca: fppcaVal,
+            md_penalty: mdPenaltyVal,
+            recorded_md_kw: recordedMdVal,
+          });
         }
-        const bill = await billRes.json();
-
-        // Step 3: Run Verification
-        const q = new URLSearchParams({
-          units_kwh: unitsVal,
-          amount_billed: amountVal,
-          subsidy_units: subsidyVal,
-        });
-        if (daysVal) q.set('billing_days', daysVal);
-        if (fppcaVal) q.set('fppca', fppcaVal);
-        if (mdPenaltyVal) q.set('md_penalty', mdPenaltyVal);
-        if (recordedMdVal) q.set('recorded_md_kw', recordedMdVal);
-
-        const verifyRes = await fetch(`/api/bills/${bill.bill_id}/verify?${q}`, {
-          method: 'POST'
-        });
-        if (!verifyRes.ok) {
-          const err = await verifyRes.json().catch(() => ({}));
-          throw new Error(err.detail || 'Tariff calculation failed');
-        }
-        const data = await verifyRes.json();
 
         renderResults(data, {
           load: loadVal,
@@ -971,6 +1422,18 @@
           subsidy: subsidyVal,
           days: daysVal,
         });
+
+        showToast(data.flagged ? 'Tariff mismatch detected!' : 'Bill verified accurate!', data.flagged ? 'warning' : 'success');
+      } catch (err) {
+        showToast(err.message, 'error');
+      } finally {
+        state.isSubmitting = false;
+        submitBtn.disabled = false;
+        submitText.textContent = 'Verify Electricity Bill';
+        submitSpinner.classList.add('hidden');
+        submitIcon.classList.remove('hidden');
+      }
+    });
 
         showToast(data.flagged ? 'Tariff mismatch detected!' : 'Bill verified accurate!', data.flagged ? 'warning' : 'success');
       } catch (err) {
