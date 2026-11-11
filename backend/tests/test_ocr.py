@@ -80,3 +80,30 @@ def test_amount_from_subtotals_when_line_unreadable():
 def test_recorded_md_parsed():
     r = parse_bill_text("Recorded M0 2.75, 2.75 KW\nConsumption(Units) 10\n")
     assert r["recorded_md_kw"] == 2.75
+
+
+def test_subsidy_missed_decimal_corrected():
+    # If dot matrix print drops decimal point in 144.4 -> 1444
+    r = parse_bill_text("Consumption(Units) 150\nEligible for subsidy 1444\n")
+    assert r["subsidy_units"] == 144.4
+
+
+def test_sanctioned_load_decimal_and_various_consumption_labels():
+    text = (
+        "Sanctioned Load 4.1 KW\n"
+        "Pres. Rdg 14500\n"
+        "Prev. Rdg 14380\n"
+        "Units Consumed : 120\n"
+        "Cur.Demand Payable : 424.00\n"
+        "Recorded MD 2.75 KW\n"
+        "Ex.Load Penalty 337.50\n"
+    )
+    r = parse_bill_text(text)
+    assert r["sanctioned_load_kw"] == 4.1
+    assert r["units_kwh"] == 120
+    assert r["amount_billed"] == 424.00
+    assert r["recorded_md_kw"] == 2.75
+    assert r["md_penalty"] == 337.50
+    assert r["missing"] == []
+    assert 120 in r["candidates"]
+

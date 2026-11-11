@@ -31,6 +31,7 @@
             'float': 'float 3s ease-in-out infinite',
             'pulse-glow': 'pulseGlow 2s cubic-bezier(0.4, 0, 0.6, 1) infinite',
             'fade-in-up': 'fadeInUp 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards',
+            'shake': 'shake 0.4s ease-in-out',
           },
           keyframes: {
             shimmer: {
@@ -48,6 +49,11 @@
             fadeInUp: {
               '0%': { opacity: '0', transform: 'translateY(12px) scale(0.99)' },
               '100%': { opacity: '1', transform: 'translateY(0) scale(1)' },
+            },
+            shake: {
+              '0%, 100%': { transform: 'translateX(0)' },
+              '20%, 60%': { transform: 'translateX(-5px)' },
+              '40%, 80%': { transform: 'translateX(5px)' },
             }
           }
         }
@@ -241,14 +247,18 @@
               </div>
               <!-- Raw Text Preview Accordion -->
               <details id="ocr-raw-details" class="mt-2.5 pt-2 border-t border-brand-200/50 dark:border-slate-700/60 hidden">
-                <summary class="cursor-pointer text-[10px] font-bold text-brand-700 dark:text-brand-300 hover:underline">Show Recognized Bill Text</summary>
-                <pre id="ocr-raw-text" class="mt-1 p-2 rounded-lg bg-white/80 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 font-mono text-[10px] text-slate-700 dark:text-slate-300 max-h-28 overflow-y-auto whitespace-pre-wrap"></pre>
+                <summary class="cursor-pointer text-[10px] font-bold text-brand-700 dark:text-brand-300 hover:underline">Show Recognized Bill Text & Numbers</summary>
+                <div class="mt-1.5 text-[10px] text-slate-500 dark:text-slate-400">
+                  <span>💡 Click any detected number to assign to a field:</span>
+                </div>
+                <div id="ocr-tokens-container" class="mt-1 flex flex-wrap gap-1 max-h-24 overflow-y-auto p-1.5 rounded-lg bg-white/70 dark:bg-slate-900 border border-slate-200 dark:border-slate-800"></div>
+                <pre id="ocr-raw-text" class="mt-1.5 p-2 rounded-lg bg-white/80 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 font-mono text-[10px] text-slate-700 dark:text-slate-300 max-h-28 overflow-y-auto whitespace-pre-wrap"></pre>
               </details>
             </div>
           </div>
 
           <!-- Parameters Form -->
-          <form id="bill-form" class="mt-6 space-y-4">
+          <form id="bill-form" novalidate class="mt-6 space-y-4">
             <div class="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800">
               <span class="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Bill Parameters</span>
               <span class="text-[11px] text-slate-400">Auto-filled or manual</span>
@@ -268,6 +278,7 @@
                   class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white/60 dark:bg-slate-800/60 text-slate-900 dark:text-slate-100 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent transition">
                 <span class="absolute right-3.5 top-2.5 text-xs font-bold text-slate-400">kW</span>
               </div>
+              <div id="load-candidates" class="mt-1 flex flex-wrap items-center gap-1 hidden"></div>
             </div>
 
             <!-- Units Consumed -->
@@ -284,6 +295,7 @@
                   class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white/60 dark:bg-slate-800/60 text-slate-900 dark:text-slate-100 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent transition">
                 <span class="absolute right-3.5 top-2.5 text-xs font-bold text-slate-400">kWh</span>
               </div>
+              <div id="units-candidates" class="mt-1 flex flex-wrap items-center gap-1 hidden"></div>
             </div>
 
             <!-- Billed Amount -->
@@ -300,6 +312,7 @@
                 <input type="number" id="amount" step="0.01" min="0" placeholder="e.g. 173.94" required
                   class="w-full pl-8 pr-3.5 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white/60 dark:bg-slate-800/60 text-slate-900 dark:text-slate-100 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent transition">
               </div>
+              <div id="amount-candidates" class="mt-1 flex flex-wrap items-center gap-1 hidden"></div>
             </div>
 
             <!-- Subsidy Units -->
@@ -316,6 +329,7 @@
                   class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white/60 dark:bg-slate-800/60 text-slate-900 dark:text-slate-100 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent transition">
                 <span class="absolute right-3.5 top-2.5 text-xs font-bold text-slate-400">Units</span>
               </div>
+              <div id="subsidy-candidates" class="mt-1 flex flex-wrap items-center gap-1 hidden"></div>
             </div>
 
             <!-- Advanced Details -->
@@ -578,47 +592,80 @@
       const out = {};
       const warnings = [];
 
-      // Billing period
-      const dateM = text.match(/(\d{2}\/\d{2}\/\d{4})\D{1,4}(\d{2}\/\d{2}\/\d{4})/);
+      // Billing period & days
+      const dateM = firstMatch([
+        /(\d{1,2}[/.-]\d{1,2}[/.-]\d{2,4})\D{1,6}(\d{1,2}[/.-]\d{1,2}[/.-]\d{2,4})/,
+        /Bill\s*P[ae]riod\D{0,8}(\d{1,2}[/.-]\d{1,2}[/.-]\d{2,4})\D{1,6}(\d{1,2}[/.-]\d{1,2}[/.-]\d{2,4})/i
+      ], text);
       if (dateM) {
         out.billing_start = dateM[1];
         out.billing_end = dateM[2];
         try {
-          const p1 = dateM[1].split('/'), p2 = dateM[2].split('/');
-          const d1 = new Date(p1[2], p1[1] - 1, p1[0]);
-          const d2 = new Date(p2[2], p2[1] - 1, p2[0]);
+          const sep = dateM[1].includes('/') ? '/' : (dateM[1].includes('-') ? '-' : '.');
+          const p1 = dateM[1].split(sep), p2 = dateM[2].split(sep);
+          const y1 = p1[2].length === 2 ? parseInt('20' + p1[2], 10) : parseInt(p1[2], 10);
+          const y2 = p2[2].length === 2 ? parseInt('20' + p2[2], 10) : parseInt(p2[2], 10);
+          const d1 = new Date(y1, parseInt(p1[1], 10) - 1, parseInt(p1[0], 10));
+          const d2 = new Date(y2, parseInt(p2[1], 10) - 1, parseInt(p2[0], 10));
           const diffDays = Math.round((d2 - d1) / (1000 * 60 * 60 * 24));
           if (diffDays > 0) out.billing_days = diffDays;
         } catch (e) {}
       }
 
+      const daysM = firstMatch([/(?:Billing\s*Days?|No\.?\s*(?:of)?\s*Days?|Bill\s*Days?)\D{0,6}(\d{1,3})\b/i], text);
+      if (daysM && !out.billing_days) {
+        out.billing_days = parseInt(daysM[1], 10);
+      }
+
       // Units
-      const unitsM = firstMatch([new RegExp("Consumption\\s*\\(?Units\\)?\\D{0,8}" + QTY_PAT, "i")], text);
+      const unitsM = firstMatch([
+        new RegExp("(?:Total\\s*|Net\\s*|Billed\\s*|Actual\\s*)?Consumption\\s*(?:\\(?Units?\\)?|\\(kWh\\)|Units?|kWh)?\\D{0,10}" + QTY_PAT, "i"),
+        new RegExp("(?:Units?\\s*(?:Consumed|Billed|Recorded)|kWh\\s*Consumed)\\D{0,10}" + QTY_PAT, "i"),
+        new RegExp("\\bUnits\\s*:\\s*" + QTY_PAT, "i"),
+        new RegExp("Billed\\s*kWh\\D{0,8}" + QTY_PAT, "i")
+      ], text);
       if (unitsM) out.units_kwh = num(unitsM[1]);
 
       // Meter readings cross-check
-      const pres = firstMatch([/Pres\W+\w+\W+(\d{3,7})\b/i], text);
-      const prev = firstMatch([/Pr[eo][vw]\W+\w+\W+(\d{3,7})\b/i], text);
-      const constM = firstMatch([/Constant\D{0,4}(\d+)/i], text);
-      if (pres && prev && constM && parseInt(constM[1], 10) === 1) {
-        const pVal = parseInt(pres[1], 10), prVal = parseInt(prev[1], 10);
+      const pres = firstMatch([
+        /Pres(?:ent|\.)?\s*(?:Rdg|Reading|Aily|Rdy)?\D{0,8}(\d{3,7}(?:\.\d+)?)/i,
+        /Cur(?:r|\.|\s*rent)?\s*(?:Rdg|Reading)?\D{0,8}(\d{3,7}(?:\.\d+)?)/i
+      ], text);
+      const prev = firstMatch([
+        /Pr[eo]v(?:ious|\.)?\s*(?:Rdg|Reading|Rdy)?\D{0,8}(\d{3,7}(?:\.\d+)?)/i,
+        /Past\s*(?:Rdg|Reading)?\D{0,8}(\d{3,7}(?:\.\d+)?)/i
+      ], text);
+      const constM = firstMatch([/Constant\D{0,4}(\d+(?:\.\d+)?)/i, /MF\D{0,4}(\d+(?:\.\d+)?)/i], text);
+      const mf = constM ? parseFloat(constM[1]) : 1.0;
+
+      if (pres && prev) {
+        const pVal = parseFloat(pres[1]), prVal = parseFloat(prev[1]);
         if (pVal > prVal) {
-          const diff = pVal - prVal;
+          const diff = Math.round((pVal - prVal) * mf * 100) / 100;
           if (out.units_kwh == null) {
             out.units_kwh = diff;
           } else if (Math.abs(out.units_kwh - diff) > 0.5) {
-            warnings.push(`Meter readings give ${diff} units. Using ${diff}.`);
+            warnings.push(`Meter readings give ${diff} units (Present ${pVal} - Previous ${prVal}). Using ${diff}.`);
             out.units_kwh = diff;
           }
         }
       }
 
       // Sanctioned Load
-      const loadM = firstMatch([/Load\s*(\d+\.?\d*)\s*KW/i, /(\d+\.?\d*)\s*KW\s+\d+\.?\d*\s+\d+\.\d{2}/i], text);
+      const loadM = firstMatch([
+        /(?:Sanctioned|Sanc\.?|Connected|Conn\.?|Contract)?\s*Load\s*(\d+(?:\.\d+)?)\s*(?:KW|HP)\b/i,
+        /Load\s*(\d+\.?\d*)\s*KW/i,
+        /(\d+\.?\d*)\s*KW\s+\d+\.?\d*\s+\d+\.\d{2}/i,
+        /(\d+(?:\.\d+)?)\s*KW\b/i
+      ], text);
       if (loadM) out.sanctioned_load_kw = num(loadM[1]);
 
       // Amount billed
-      const amtM = firstMatch([new RegExp("Am\\w{2,4}\\s*\\(\\s*\\w\\s*-\\s*\\w\\s*\\)\\s*" + MONEY_PAT, "i")], text);
+      const amtM = firstMatch([
+        new RegExp("Am\\w{2,4}\\s*\\(\\s*\\w\\s*-\\s*\\w\\s*\\)\\s*" + MONEY_PAT, "i"),
+        new RegExp("(?:Cur\\.?\\s*Demand|Current\\s*Demand|Cur\\.?\\s*Dem)\\s*(?:Payable)?\\D{0,8}" + MONEY_PAT, "i"),
+        new RegExp("(?:Net\\s*Amount|Net\\s*Payable|Bill\\s*Amount|Amount\\s*Payable|Total\\s*Payable)\\D{0,8}" + MONEY_PAT, "i")
+      ], text);
       if (amtM) {
         out.amount_billed = num(amtM[1]);
       } else {
@@ -632,10 +679,13 @@
       }
 
       // Recorded MD & Penalty
-      const rmd = firstMatch([/Recorded\s*M\w{1,2}\D{0,4}(\d+\.?\d*)/i], text);
+      const rmd = firstMatch([/(?:Recorded\s*M\w{1,2}|Recorded\s*Demand|Max(?:imum)?\s*Demand|RMD)\D{0,6}(\d+(?:\.\d+)?)/i], text);
       if (rmd) out.recorded_md_kw = num(rmd[1]);
 
-      const pen = firstMatch([new RegExp("Load\\W{0,3}\\w{0,4}\\W{0,2}P[ea]n\\w*\\s*" + MONEY_PAT, "i")], text);
+      const pen = firstMatch([
+        new RegExp("Load\\W{0,3}\\w{0,4}\\W{0,2}P[ea]n\\w*\\s*" + MONEY_PAT, "i"),
+        new RegExp("(?:Ex(?:cess)?\\.?\\s*Load\\s*Penalty|MD\\s*Penalty|Penalty)\\D{0,6}" + MONEY_PAT, "i")
+      ], text);
       if (pen && num(pen[1]) > 0) out.md_penalty = num(pen[1]);
 
       // Subsidy units
@@ -655,6 +705,30 @@
           out.subsidy_units = 0.0;
         }
       }
+
+      // Gruha Jyothi sanity check (capped at 200 units/mo)
+      // If OCR missed a decimal point (e.g. 1444 -> 144.4 or 1440 -> 144.0)
+      if (out.subsidy_units != null && out.subsidy_units > 400) {
+        if ((out.subsidy_units / 10) <= 200) {
+          out.subsidy_units = Math.round((out.subsidy_units / 10) * 100) / 100;
+        } else {
+          out.subsidy_units = 0.0;
+        }
+      }
+
+      // Collect candidate numbers detected across the document
+      const candidates = [];
+      const seen = new Set();
+      const numRe = /\b(\d+(?:\.\d{1,2})?)\b/g;
+      let nm;
+      while ((nm = numRe.exec(text)) !== null) {
+        const v = parseFloat(nm[1]);
+        if (v > 0 && v < 50000 && !seen.has(v)) {
+          seen.add(v);
+          candidates.push(v);
+        }
+      }
+      out.candidates = candidates.slice(0, 15);
 
       out.warnings = warnings;
       out.missing = ["units_kwh", "sanctioned_load_kw", "amount_billed"].filter(k => out[k] == null);
@@ -868,8 +942,13 @@
       });
       URL.revokeObjectURL(url);
 
-      onProgress('Enhancing image contrast...', 25);
-      const scale = Math.max(1, 1400 / img.width);
+      onProgress('Enhancing contrast & dot-matrix clarity...', 25);
+      // Scale: optimal range for spot billing receipts is 1600-2200px width
+      let targetWidth = img.width;
+      if (img.width < 1600) targetWidth = 1600;
+      else if (img.width > 2200) targetWidth = 2200;
+      const scale = targetWidth / img.width;
+
       const canvas = document.createElement('canvas');
       canvas.width = Math.round(img.width * scale);
       canvas.height = Math.round(img.height * scale);
@@ -878,9 +957,26 @@
 
       const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
       const d = imgData.data;
-      for (let i = 0; i < d.length; i += 4) {
-        const gray = 0.299 * d[i] + 0.587 * d[i+1] + 0.114 * d[i+2];
-        d[i] = gray; d[i+1] = gray; d[i+2] = gray;
+
+      // Dynamic Range Histogram Stretching & Dot Clarification
+      let minLum = 255, maxLum = 0;
+      const lums = new Uint8Array(d.length / 4);
+      for (let i = 0, j = 0; i < d.length; i += 4, j++) {
+        const gray = Math.round(0.299 * d[i] + 0.587 * d[i+1] + 0.114 * d[i+2]);
+        lums[j] = gray;
+        if (gray < minLum) minLum = gray;
+        if (gray > maxLum) maxLum = gray;
+      }
+
+      const range = Math.max(20, maxLum - minLum);
+      for (let i = 0, j = 0; i < d.length; i += 4, j++) {
+        let v = Math.round(((lums[j] - minLum) / range) * 255);
+        if (v < 135) {
+          v = Math.max(0, v - 35); // darken ink
+        } else {
+          v = Math.min(255, v + 25); // whiten paper background
+        }
+        d[i] = v; d[i+1] = v; d[i+2] = v;
       }
       ctx.putImageData(imgData, 0, 0);
 
@@ -978,12 +1074,58 @@
       previewPdfIcon.classList.add('hidden');
       $('ocr-status-card').classList.add('hidden');
       clearOcrBadges();
+      clearCandidatePills();
     }
 
     function clearOcrBadges() {
       ['badge-load-ocr', 'badge-units-ocr', 'badge-amount-ocr', 'badge-subsidy-ocr'].forEach(id => {
         $(id)?.classList.add('hidden');
       });
+    }
+
+    function clearCandidatePills() {
+      ['load-candidates', 'units-candidates', 'amount-candidates', 'subsidy-candidates'].forEach(id => {
+        const el = $(id);
+        if (el) {
+          el.innerHTML = '';
+          el.classList.add('hidden');
+        }
+      });
+      const tc = $('ocr-tokens-container');
+      if (tc) tc.innerHTML = '';
+    }
+
+    function renderCandidatePills(containerId, inputId, candidates, currentValue, fieldLabel) {
+      const container = $(containerId);
+      if (!container || !candidates || candidates.length === 0) return;
+      container.innerHTML = '';
+
+      const label = document.createElement('span');
+      label.className = 'text-[10px] font-semibold text-slate-400 mr-0.5';
+      label.textContent = 'Found on slip:';
+      container.appendChild(label);
+
+      // Filter out current value and take top 4 options
+      const filtered = candidates.filter(c => Math.abs(c - (currentValue || 0)) > 0.001).slice(0, 5);
+      if (filtered.length === 0) return;
+
+      filtered.forEach(numVal => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'px-2 py-0.5 rounded-md text-[10px] font-mono font-bold bg-brand-50 hover:bg-brand-100 dark:bg-brand-950/70 dark:hover:bg-brand-900 text-brand-700 dark:text-brand-300 border border-brand-200 dark:border-brand-800 transition active:scale-95';
+        btn.textContent = numVal;
+        btn.title = `Click to set ${fieldLabel || inputId} to ${numVal}`;
+        btn.addEventListener('click', (e) => {
+          e.preventDefault();
+          $(inputId).value = numVal;
+          $(inputId).focus();
+          $(inputId).classList.add('ring-2', 'ring-brand-500');
+          setTimeout(() => $(inputId).classList.remove('ring-2', 'ring-brand-500'), 800);
+          showToast(`Set ${fieldLabel || inputId} to ${numVal}`, 'info');
+        });
+        container.appendChild(btn);
+      });
+      container.classList.remove('hidden');
     }
 
     function handleFileSelect(file) {
@@ -1032,7 +1174,18 @@
       progressBar.style.width = '10%';
       missingChips.classList.add('hidden');
       if (rawDetails) rawDetails.classList.add('hidden');
+      
+      // Clean previous form values so old demo numbers do not mix with this slip
+      $('load').value = '';
+      $('units').value = '';
+      $('amount').value = '';
+      $('subsidy').value = '';
+      $('days').value = '';
+      $('recorded-md').value = '';
+      $('md-penalty').value = '';
+      $('fppca').value = '';
       clearOcrBadges();
+      clearCandidatePills();
 
       try {
         let d = null;
@@ -1067,21 +1220,29 @@
           $('load').value = d.sanctioned_load_kw;
           $('badge-load-ocr').classList.remove('hidden');
           filledCount++;
+        } else {
+          $('load').value = '1';
         }
+
         if (d.units_kwh != null) {
           $('units').value = d.units_kwh;
           $('badge-units-ocr').classList.remove('hidden');
           filledCount++;
         }
+
         if (d.amount_billed != null) {
           $('amount').value = d.amount_billed;
           $('badge-amount-ocr').classList.remove('hidden');
           filledCount++;
         }
+
         if (d.subsidy_units != null) {
           $('subsidy').value = d.subsidy_units;
           $('badge-subsidy-ocr').classList.remove('hidden');
+        } else {
+          $('subsidy').value = '0';
         }
+
         if (d.billing_days != null) {
           $('days').value = d.billing_days;
           if (d.billing_days > 45) $('advanced-details').open = true;
@@ -1094,6 +1255,47 @@
 
         state.scanExtra = { md_penalty: d.md_penalty, recorded_md_kw: d.recorded_md_kw };
 
+        // Render Candidate Chips from detected numbers
+        if (d.candidates && d.candidates.length > 0) {
+          renderCandidatePills('units-candidates', 'units', d.candidates, d.units_kwh, 'Units');
+          renderCandidatePills('amount-candidates', 'amount', d.candidates, d.amount_billed, 'Amount');
+          renderCandidatePills('load-candidates', 'load', d.candidates, d.sanctioned_load_kw, 'Load');
+          renderCandidatePills('subsidy-candidates', 'subsidy', d.candidates, d.subsidy_units, 'Subsidy');
+
+          const tokensContainer = $('ocr-tokens-container');
+          if (tokensContainer) {
+            tokensContainer.innerHTML = '';
+            d.candidates.forEach(numVal => {
+              const chip = document.createElement('div');
+              chip.className = 'inline-flex items-center rounded-lg bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-mono font-bold overflow-hidden shadow-sm m-0.5';
+
+              const valSpan = document.createElement('span');
+              valSpan.className = 'px-2 py-0.5 text-slate-800 dark:text-slate-100 bg-white dark:bg-slate-900';
+              valSpan.textContent = numVal;
+              chip.appendChild(valSpan);
+
+              ['Units', 'Amount', 'Load', 'Subsidy'].forEach(field => {
+                const targetId = field === 'Units' ? 'units' : (field === 'Amount' ? 'amount' : (field === 'Load' ? 'load' : 'subsidy'));
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                btn.className = 'px-1.5 py-0.5 text-[9px] font-sans font-medium hover:bg-brand-500 hover:text-white text-slate-600 dark:text-slate-400 border-l border-slate-200 dark:border-slate-700 transition';
+                btn.textContent = '+' + field.slice(0, 3);
+                btn.title = `Assign ${numVal} to ${field}`;
+                btn.addEventListener('click', (e) => {
+                  e.preventDefault();
+                  $(targetId).value = numVal;
+                  $(targetId).focus();
+                  $(targetId).classList.add('ring-2', 'ring-brand-500');
+                  setTimeout(() => $(targetId).classList.remove('ring-2', 'ring-brand-500'), 800);
+                  showToast(`Assigned ${numVal} to ${field}`, 'info');
+                });
+                chip.appendChild(btn);
+              });
+              tokensContainer.appendChild(chip);
+            });
+          }
+        }
+
         spinner.classList.add('hidden');
         icon.classList.remove('hidden');
         progressContainer.classList.add('hidden');
@@ -1102,6 +1304,10 @@
         if (rawOcrText && rawDetails && rawTextEl) {
           rawTextEl.textContent = rawOcrText.trim();
           rawDetails.classList.remove('hidden');
+          // If units or amount are missing, auto open the recognized text card for easy verification
+          if (d.missing && d.missing.length > 0) {
+            rawDetails.open = true;
+          }
         }
 
         if (d.missing && d.missing.length > 0) {
@@ -1136,6 +1342,7 @@
       $('md-penalty').value = '';
       state.scanExtra = {};
       clearOcrBadges();
+      clearCandidatePills();
       showToast('Loaded 94 kWh Verified Bill', 'info');
       $('bill-form').dispatchEvent(new Event('submit'));
     });
@@ -1152,6 +1359,7 @@
       $('advanced-details').open = true;
       state.scanExtra = { md_penalty: 337.50, recorded_md_kw: 2.75 };
       clearOcrBadges();
+      clearCandidatePills();
       showToast('Loaded 335 kWh Multi-Month Bill', 'info');
       $('bill-form').dispatchEvent(new Event('submit'));
     });
@@ -1167,6 +1375,7 @@
       $('md-penalty').value = '';
       state.scanExtra = {};
       clearOcrBadges();
+      clearCandidatePills();
       showToast('Loaded Discrepancy Sample', 'warning');
       $('bill-form').dispatchEvent(new Event('submit'));
     });
@@ -1175,6 +1384,27 @@
     $('bill-form').addEventListener('submit', async (e) => {
       e.preventDefault();
       if (state.isSubmitting) return;
+
+      const unitsInput = $('units');
+      const amountInput = $('amount');
+      const loadInput = $('load');
+
+      // Friendly non-blocking validation
+      if (!unitsInput.value || isNaN(parseFloat(unitsInput.value)) || parseFloat(unitsInput.value) < 0) {
+        unitsInput.focus();
+        unitsInput.classList.add('ring-2', 'ring-rose-500', 'animate-shake');
+        setTimeout(() => unitsInput.classList.remove('ring-2', 'ring-rose-500', 'animate-shake'), 1000);
+        showToast('Please enter or tap the Units Consumed from your slip.', 'warning');
+        return;
+      }
+
+      if (!amountInput.value || isNaN(parseFloat(amountInput.value)) || parseFloat(amountInput.value) < 0) {
+        amountInput.focus();
+        amountInput.classList.add('ring-2', 'ring-rose-500', 'animate-shake');
+        setTimeout(() => amountInput.classList.remove('ring-2', 'ring-rose-500', 'animate-shake'), 1000);
+        showToast('Please enter or tap the Bill Amount on Paper.', 'warning');
+        return;
+      }
 
       const submitBtn = $('btn-submit');
       const submitText = $('btn-submit-text');
