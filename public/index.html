@@ -3,17 +3,9 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>BillWise — Electricity Bill Verification & Energy Savings Engine</title>
+  <title>BillWise — AI Electricity Bill Auditor</title>
   <!-- Tailwind CSS CDN -->
   <script src="https://cdn.tailwindcss.com"></script>
-  <!-- Tesseract.js Neural OCR & PDF.js -->
-  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
-  <script>
-    if (window.pdfjsLib) {
-      pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
-    }
-  </script>
   <script>
     tailwind.config = {
       darkMode: 'class',
@@ -33,80 +25,98 @@
               900: '#064e3b',
               950: '#022c22',
             }
+          },
+          animation: {
+            'shimmer': 'shimmer 2.5s linear infinite',
+            'float': 'float 3s ease-in-out infinite',
+            'pulse-glow': 'pulseGlow 2s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+            'fade-in-up': 'fadeInUp 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards',
+          },
+          keyframes: {
+            shimmer: {
+              '0%': { backgroundPosition: '-200% 0' },
+              '100%': { backgroundPosition: '200% 0' },
+            },
+            float: {
+              '0%, 100%': { transform: 'translateY(0)' },
+              '50%': { transform: 'translateY(-6px)' },
+            },
+            pulseGlow: {
+              '0%, 100%': { opacity: '0.8', transform: 'scale(1)' },
+              '50%': { opacity: '0.4', transform: 'scale(1.05)' },
+            },
+            fadeInUp: {
+              '0%': { opacity: '0', transform: 'translateY(12px) scale(0.99)' },
+              '100%': { opacity: '1', transform: 'translateY(0) scale(1)' },
+            }
           }
         }
       }
     }
   </script>
+  <!-- Tesseract.js Neural OCR & PDF.js -->
+  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+  <script>
+    if (window.pdfjsLib) {
+      pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+    }
+  </script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
   <style>
-    body {
-      font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+    body { font-family: 'Plus Jakarta Sans', system-ui, sans-serif; }
+    .font-mono { font-family: 'JetBrains Mono', monospace; }
+    .glass { backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); }
+    .is-dragover {
+      border-color: #10b981 !important;
+      background-color: rgba(16, 185, 129, 0.08) !important;
+      transform: scale(1.01);
+      box-shadow: 0 0 25px rgba(16, 185, 129, 0.2);
     }
-    .font-mono {
-      font-family: 'JetBrains Mono', monospace;
-    }
-    @keyframes pulse-subtle {
-      0%, 100% { opacity: 1; }
-      50% { opacity: 0.6; }
-    }
-    .animate-pulse-subtle {
-      animation: pulse-subtle 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
-    }
-    /* Custom scrollbar */
-    ::-webkit-scrollbar {
-      width: 6px;
-      height: 6px;
-    }
-    ::-webkit-scrollbar-track {
-      background: transparent;
-    }
-    ::-webkit-scrollbar-thumb {
-      background: #cbd5e1;
-      border-radius: 9999px;
-    }
-    .dark ::-webkit-scrollbar-thumb {
-      background: #334155;
-    }
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 9999px; }
+    .dark ::-webkit-scrollbar-thumb { background: #334155; }
   </style>
 </head>
-<body class="h-full bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 transition-colors duration-200 antialiased flex flex-col min-h-screen">
+<body class="h-full bg-slate-50 dark:bg-[#0b0f19] text-slate-900 dark:text-slate-100 transition-colors duration-200 antialiased flex flex-col min-h-screen relative selection:bg-brand-500 selection:text-white">
+
+  <!-- Ambient Background Glow Effects -->
+  <div class="fixed inset-0 pointer-events-none overflow-hidden z-0">
+    <div class="absolute -top-40 left-1/2 -translate-x-1/2 w-[700px] h-[350px] bg-gradient-to-tr from-brand-500/20 via-emerald-400/15 to-transparent rounded-full blur-3xl opacity-70 dark:opacity-40 animate-pulse-glow"></div>
+    <div class="absolute top-1/3 -left-40 w-[450px] h-[450px] bg-teal-500/10 rounded-full blur-3xl opacity-50 dark:opacity-20"></div>
+    <div class="absolute bottom-10 -right-40 w-[450px] h-[450px] bg-emerald-500/10 rounded-full blur-3xl opacity-50 dark:opacity-20"></div>
+  </div>
 
   <!-- Header -->
-  <header class="sticky top-0 z-40 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 transition-colors">
+  <header class="sticky top-0 z-40 bg-white/75 dark:bg-[#0b0f19]/75 glass border-b border-slate-200/80 dark:border-slate-800/80 transition-colors">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
       <div class="flex items-center space-x-3">
-        <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-brand-600 to-emerald-400 flex items-center justify-center text-white shadow-lg shadow-brand-500/20">
-          <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-brand-600 to-emerald-400 flex items-center justify-center text-white shadow-lg shadow-brand-500/25 ring-2 ring-brand-500/20">
+          <svg class="w-5 h-5 animate-float" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M13 10V3L4 14h7v7l9-11h-7z" />
           </svg>
         </div>
         <div>
           <div class="flex items-center space-x-2">
-            <span class="font-extrabold text-xl tracking-tight bg-gradient-to-r from-slate-900 via-slate-800 to-brand-700 dark:from-white dark:via-slate-100 dark:to-brand-400 bg-clip-text text-transparent">BillWise</span>
-            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-brand-100 dark:bg-brand-950 text-brand-700 dark:text-brand-300 border border-brand-200 dark:border-brand-800">v2.0</span>
+            <span class="font-extrabold text-xl tracking-tight bg-gradient-to-r from-slate-900 via-slate-800 to-brand-600 dark:from-white dark:via-slate-100 dark:to-brand-400 bg-clip-text text-transparent">BillWise</span>
+            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-brand-100 dark:bg-brand-950/80 text-brand-700 dark:text-brand-300 border border-brand-200 dark:border-brand-800">AI 2.0</span>
           </div>
-          <p class="text-xs text-slate-500 dark:text-slate-400 hidden sm:block">Autonomous Electricity Tariff Verification & Energy Savings Engine</p>
+          <p class="text-[11px] text-slate-500 dark:text-slate-400 hidden sm:block">Electricity Bill Auditor & Energy Savings Coach</p>
         </div>
       </div>
 
-      <div class="flex items-center space-x-3">
-        <!-- Tariff Standard Tag -->
-        <div class="hidden md:flex items-center space-x-2 text-xs bg-slate-100 dark:bg-slate-800/80 text-slate-600 dark:text-slate-300 px-3 py-1.5 rounded-lg border border-slate-200/80 dark:border-slate-700/60">
-          <span class="w-2 h-2 rounded-full bg-emerald-500"></span>
-          <span class="font-medium">BESCOM LT-1 Domestic (Gruha Jyothi Ready)</span>
-        </div>
-
-        <!-- API Health Pill -->
-        <div id="health-pill" class="flex items-center space-x-1.5 text-xs px-2.5 py-1 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700" title="System API Status">
-          <span id="health-dot" class="w-2 h-2 rounded-full bg-amber-400 animate-pulse"></span>
-          <span id="health-text" class="font-mono text-[11px]">Connecting...</span>
+      <div class="flex items-center space-x-2 sm:space-x-3">
+        <!-- Status Badge -->
+        <div class="flex items-center space-x-1.5 text-xs px-2.5 py-1 rounded-full bg-slate-100 dark:bg-slate-800/80 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700/60 shadow-sm">
+          <span class="w-2 h-2 rounded-full bg-emerald-500 animate-ping"></span>
+          <span class="font-mono text-[11px] font-semibold text-emerald-600 dark:text-emerald-400">Engine Active</span>
         </div>
 
         <!-- Theme Toggle -->
-        <button id="theme-toggle" class="p-2 rounded-xl text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition" aria-label="Toggle Theme">
+        <button id="theme-toggle" class="p-2 rounded-xl text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800/80 transition" aria-label="Toggle Theme">
           <svg id="theme-sun" class="w-5 h-5 hidden" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
           </svg>
@@ -119,443 +129,343 @@
   </header>
 
   <!-- Main Container -->
-  <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8">
+  <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 z-10">
 
-    <!-- Hero / Info Banner -->
-    <div class="mb-8 p-5 rounded-2xl bg-gradient-to-r from-brand-900/10 via-emerald-800/5 to-transparent border border-brand-200/50 dark:border-brand-900/40 relative overflow-hidden">
-      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h1 class="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white">Verify Your Electricity Bill in Seconds</h1>
-          <p class="text-sm text-slate-600 dark:text-slate-300 mt-1 max-w-2xl">
-            Upload your monthly bill photo or PDF. Our computer vision OCR scans the readings, runs our precision tariff calculation engine against official KERC slab rules, and audits for overcharges, FPPCA variances, and Gruha Jyothi subsidy miscalculations.
-          </p>
-        </div>
-        <!-- Quick Sample Presets -->
-        <div class="flex flex-wrap sm:flex-col gap-2 shrink-0">
-          <span class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Quick Demos</span>
-          <div class="flex flex-wrap gap-2">
-            <button id="btn-sample-1" type="button" class="px-3 py-1.5 rounded-lg text-xs font-medium bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 hover:border-brand-500 dark:hover:border-brand-500 text-slate-700 dark:text-slate-200 shadow-sm transition">
-              Sample 1: Verified (94 kWh)
-            </button>
-            <button id="btn-sample-2" type="button" class="px-3 py-1.5 rounded-lg text-xs font-medium bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 hover:border-brand-500 dark:hover:border-brand-500 text-slate-700 dark:text-slate-200 shadow-sm transition">
-              Sample 2: Multi-Month (335 kWh)
-            </button>
-            <button id="btn-sample-3" type="button" class="px-3 py-1.5 rounded-lg text-xs font-medium bg-white dark:bg-slate-800 border border-amber-300 dark:border-amber-700 hover:border-amber-500 text-amber-700 dark:text-amber-300 shadow-sm transition">
-              Sample 3: Overcharged Flagged
-            </button>
-          </div>
-        </div>
+    <!-- Top Action Bar & Presets -->
+    <div class="mb-6 flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-slate-200/60 dark:border-slate-800/60">
+      <div>
+        <h1 class="text-2xl font-extrabold tracking-tight text-slate-900 dark:text-white">Verify Your Electricity Bill</h1>
+        <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Upload a photo or enter readings to detect overcharges & view tariff breakdowns</p>
+      </div>
+
+      <!-- Quick Test Chips -->
+      <div class="flex items-center gap-2 overflow-x-auto pb-1 sm:pb-0 shrink-0">
+        <span class="text-[11px] font-bold text-slate-400 uppercase tracking-wider mr-1">Quick Demos:</span>
+        <button id="btn-sample-1" type="button" class="px-3 py-1 rounded-full text-xs font-semibold bg-white dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 hover:border-brand-500 dark:hover:border-brand-500 text-slate-700 dark:text-slate-200 shadow-sm hover:shadow transition hover:scale-105 active:scale-95">
+          ⚡ 94 kWh Normal
+        </button>
+        <button id="btn-sample-2" type="button" class="px-3 py-1 rounded-full text-xs font-semibold bg-white dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 hover:border-brand-500 dark:hover:border-brand-500 text-slate-700 dark:text-slate-200 shadow-sm hover:shadow transition hover:scale-105 active:scale-95">
+          📅 335 kWh Multi-Month
+        </button>
+        <button id="btn-sample-3" type="button" class="px-3 py-1 rounded-full text-xs font-semibold bg-white dark:bg-slate-800/80 border border-amber-300 dark:border-amber-700/80 hover:border-amber-500 text-amber-700 dark:text-amber-300 shadow-sm hover:shadow transition hover:scale-105 active:scale-95">
+          ⚠️ Discrepancy Sample
+        </button>
       </div>
     </div>
 
-    <!-- 2-Column Responsive Layout -->
+    <!-- 2-Column Grid -->
     <div class="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
 
-      <!-- LEFT COLUMN: Input & Upload (lg:col-span-5) -->
+      <!-- LEFT COLUMN: Upload & Form (lg:col-span-5) -->
       <div class="lg:col-span-5 space-y-6">
 
-        <!-- Form Card -->
-        <div class="bg-white dark:bg-slate-900 rounded-2xl p-6 shadow-sm border border-slate-200 dark:border-slate-800">
-          <div class="flex items-center justify-between mb-4">
-            <h2 class="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
-              <span class="w-6 h-6 rounded-lg bg-brand-100 dark:bg-brand-900/60 text-brand-700 dark:text-brand-300 flex items-center justify-center text-xs font-bold">1</span>
-              Upload Bill Photo or PDF
-            </h2>
-            <span class="text-xs text-slate-400 font-medium">JPG, PNG, PDF &le; 10MB</span>
-          </div>
+        <!-- Form Card with Glass Effect -->
+        <div class="bg-white/90 dark:bg-slate-900/80 glass rounded-3xl p-6 sm:p-7 shadow-xl shadow-slate-200/50 dark:shadow-black/50 border border-slate-200/80 dark:border-slate-800 transition-all">
 
-          <!-- Drag and Drop Zone -->
-          <div id="dropzone" class="border-2 border-dashed border-slate-300 dark:border-slate-700 hover:border-brand-500 dark:hover:border-brand-500 rounded-xl p-5 text-center cursor-pointer transition-all bg-slate-50/60 dark:bg-slate-800/40 relative group">
-            <input type="file" id="file" class="hidden" accept="image/jpeg,image/png,application/pdf">
+          <!-- Dropzone Container -->
+          <div class="relative">
+            <span class="block text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-2">
+              Bill Photo or PDF
+            </span>
 
-            <!-- Default Empty State in Dropzone -->
-            <div id="dropzone-empty" class="space-y-3">
-              <div class="w-12 h-12 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-400 group-hover:text-brand-600 dark:group-hover:text-brand-400 mx-auto flex items-center justify-center transition">
-                <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                </svg>
-              </div>
-              <div>
-                <p class="text-sm font-semibold text-slate-700 dark:text-slate-200">
-                  <span class="text-brand-600 dark:text-brand-400">Click to upload</span> or drag and drop
-                </p>
-                <p class="text-xs text-slate-500 dark:text-slate-400 mt-1">Automatic OCR scan triggers on image upload</p>
-              </div>
-            </div>
+            <!-- Hidden File Input (Accessible & Programmatically Clickable) -->
+            <input type="file" id="file" accept="image/jpeg,image/png,image/webp,application/pdf"
+                   style="position: absolute; opacity: 0; width: 0.1px; height: 0.1px; pointer-events: none;">
 
-            <!-- File Selected Preview State -->
-            <div id="file-preview-card" class="hidden flex items-center justify-between text-left p-3 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
-              <div class="flex items-center space-x-3 overflow-hidden">
-                <div id="preview-thumbnail-container" class="w-12 h-12 rounded-lg overflow-hidden bg-slate-100 dark:bg-slate-700 shrink-0 flex items-center justify-center">
-                  <img id="preview-img" src="" alt="Bill preview" class="w-full h-full object-cover hidden">
-                  <svg id="preview-pdf-icon" class="w-6 h-6 text-red-500 hidden" fill="currentColor" viewBox="0 0 20 20">
-                    <path fill-rule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4zm2 6a1 1 0 011-1h6a1 1 0 110 2H7a1 1 0 01-1-1zm1 3a1 1 0 100 2h6a1 1 0 100-2H7z" clip-rule="evenodd" />
+            <!-- Dropzone Box -->
+            <div id="dropzone" class="relative group cursor-pointer border-2 border-dashed border-slate-300 dark:border-slate-700 hover:border-brand-500 dark:hover:border-brand-500 rounded-2xl p-6 text-center transition-all duration-200 bg-slate-50/70 dark:bg-slate-800/40 hover:bg-emerald-50/20 dark:hover:bg-brand-950/10">
+
+              <!-- Empty State -->
+              <div id="dropzone-empty" class="space-y-3">
+                <div class="w-14 h-14 rounded-2xl bg-gradient-to-tr from-brand-100 to-emerald-50 dark:from-slate-800 dark:to-brand-950 text-brand-600 dark:text-brand-400 mx-auto flex items-center justify-center shadow-inner group-hover:scale-110 group-hover:rotate-3 transition-transform duration-300">
+                  <svg class="w-7 h-7" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
                   </svg>
                 </div>
-                <div class="min-w-0">
-                  <p id="file-name" class="text-sm font-semibold text-slate-800 dark:text-slate-200 truncate">bill.jpg</p>
-                  <p id="file-size" class="text-xs text-slate-500 dark:text-slate-400">124 KB</p>
+                <div>
+                  <p class="text-sm font-bold text-slate-800 dark:text-slate-200">
+                    Drag and drop bill here, or
+                  </p>
+                  <p class="text-xs text-slate-500 dark:text-slate-400 mt-1">Supports JPG, PNG, WebP, and PDF</p>
+                </div>
+
+                <!-- Explicit Clickable Button -->
+                <button type="button" id="btn-browse" class="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold bg-slate-900 hover:bg-brand-600 text-white dark:bg-brand-600 dark:hover:bg-brand-500 shadow-md hover:shadow-lg shadow-brand-500/20 transition-all hover:scale-105 active:scale-95">
+                  <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+                  </svg>
+                  Browse Bill File
+                </button>
+              </div>
+
+              <!-- Selected File Preview -->
+              <div id="file-preview-card" class="hidden flex items-center justify-between text-left p-3.5 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-sm">
+                <div class="flex items-center space-x-3 overflow-hidden">
+                  <div class="w-12 h-12 rounded-lg overflow-hidden bg-slate-100 dark:bg-slate-700 shrink-0 flex items-center justify-center border border-slate-200 dark:border-slate-600">
+                    <img id="preview-img" src="" alt="Bill preview" class="w-full h-full object-cover hidden">
+                    <svg id="preview-pdf-icon" class="w-6 h-6 text-red-500 hidden" fill="currentColor" viewBox="0 0 20 20">
+                      <path fill-rule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4zm2 6a1 1 0 011-1h6a1 1 0 110 2H7a1 1 0 01-1-1zm1 3a1 1 0 100 2h6a1 1 0 100-2H7z" clip-rule="evenodd" />
+                    </svg>
+                  </div>
+                  <div class="min-w-0">
+                    <p id="file-name" class="text-xs font-bold text-slate-800 dark:text-slate-200 truncate">bill.jpg</p>
+                    <p id="file-size" class="text-[11px] font-mono text-slate-500 dark:text-slate-400">0 KB</p>
+                  </div>
+                </div>
+                <button id="btn-remove-file" type="button" class="p-2 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/40 transition" title="Remove file">
+                  <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+
+            <!-- OCR Scanner Live Status Card -->
+            <div id="ocr-status-card" class="mt-3 p-3.5 rounded-2xl bg-gradient-to-r from-brand-50/80 to-emerald-50/50 dark:from-slate-800/90 dark:to-slate-800/60 border border-brand-200/60 dark:border-slate-700 text-xs hidden animate-fade-in-up">
+              <div class="flex items-center justify-between">
+                <div class="flex items-center space-x-2">
+                  <span id="ocr-spinner" class="inline-block w-4 h-4 border-2 border-brand-500 border-t-transparent rounded-full animate-spin"></span>
+                  <span id="ocr-status-icon" class="hidden text-brand-600 dark:text-brand-400">
+                    <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7" /></svg>
+                  </span>
+                  <span id="ocr-status-text" class="font-bold text-slate-800 dark:text-slate-200">Analyzing bill...</span>
                 </div>
               </div>
-              <button id="btn-remove-file" type="button" class="p-1.5 rounded-lg text-slate-400 hover:text-red-500 hover:bg-slate-100 dark:hover:bg-slate-700 transition" title="Remove file">
-                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
+              <!-- Progress Bar -->
+              <div id="ocr-progress-container" class="w-full bg-slate-200 dark:bg-slate-700 h-1.5 rounded-full overflow-hidden mt-2.5 hidden">
+                <div id="ocr-progress-bar" class="bg-gradient-to-r from-brand-500 to-emerald-400 h-full w-0 transition-all duration-200"></div>
+              </div>
+              <!-- Missing chips -->
+              <div id="ocr-missing-chips" class="mt-2.5 flex flex-wrap gap-1.5 hidden">
+                <span class="text-amber-600 dark:text-amber-400 font-semibold text-[11px]">Verify:</span>
+              </div>
+              <!-- Raw Text Preview Accordion -->
+              <details id="ocr-raw-details" class="mt-2.5 pt-2 border-t border-brand-200/50 dark:border-slate-700/60 hidden">
+                <summary class="cursor-pointer text-[10px] font-bold text-brand-700 dark:text-brand-300 hover:underline">Show Recognized Bill Text</summary>
+                <pre id="ocr-raw-text" class="mt-1 p-2 rounded-lg bg-white/80 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 font-mono text-[10px] text-slate-700 dark:text-slate-300 max-h-28 overflow-y-auto whitespace-pre-wrap"></pre>
+              </details>
             </div>
           </div>
 
-          <!-- OCR Live Scanner Status Bar -->
-          <div id="ocr-status-card" class="mt-4 p-3 rounded-xl bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700/80 text-xs hidden">
-            <div class="flex items-center space-x-2">
-              <span id="ocr-spinner" class="inline-block w-3.5 h-3.5 border-2 border-brand-500 border-t-transparent rounded-full animate-spin"></span>
-              <span id="ocr-status-icon" class="hidden text-brand-600 dark:text-brand-400">
-                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7" /></svg>
-              </span>
-              <span id="ocr-status-text" class="font-medium text-slate-700 dark:text-slate-300">Reading bill details...</span>
-            </div>
-            <!-- Progress Bar -->
-            <div id="ocr-progress-container" class="w-full bg-slate-200 dark:bg-slate-700 h-1.5 rounded-full overflow-hidden mt-2 hidden">
-              <div id="ocr-progress-bar" class="bg-brand-500 h-full w-0 transition-all duration-200"></div>
-            </div>
-            <!-- Missing fields chip list -->
-            <div id="ocr-missing-chips" class="mt-2 flex flex-wrap gap-1.5 hidden">
-              <span class="text-amber-600 dark:text-amber-400 font-semibold text-[11px]">Please enter manually:</span>
-            </div>
-            <!-- Warnings banner -->
-            <div id="ocr-warning-box" class="mt-2 text-amber-700 dark:text-amber-300 text-[11px] bg-amber-50 dark:bg-amber-950/40 p-2 rounded border border-amber-200 dark:border-amber-800 hidden"></div>
-            <!-- Raw OCR preview accordion -->
-            <details id="ocr-raw-details" class="mt-2.5 pt-2 border-t border-slate-200/80 dark:border-slate-700/60 hidden">
-              <summary class="cursor-pointer text-[11px] font-semibold text-slate-500 dark:text-slate-400 hover:text-brand-600 dark:hover:text-brand-400">Show Recognized OCR Text</summary>
-              <pre id="ocr-raw-text" class="mt-1.5 p-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 font-mono text-[10px] text-slate-700 dark:text-slate-300 max-h-36 overflow-y-auto whitespace-pre-wrap"></pre>
-            </details>
-          </div>
-
-          <!-- Form Details -->
+          <!-- Parameters Form -->
           <form id="bill-form" class="mt-6 space-y-4">
             <div class="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800">
-              <h2 class="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                <span class="w-6 h-6 rounded-lg bg-brand-100 dark:bg-brand-900/60 text-brand-700 dark:text-brand-300 flex items-center justify-center text-xs font-bold">2</span>
-                Tariff Parameters
-              </h2>
-              <span class="text-xs text-slate-400">Review or adjust values</span>
+              <span class="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Bill Parameters</span>
+              <span class="text-[11px] text-slate-400">Auto-filled or manual</span>
             </div>
 
             <!-- Sanctioned Load -->
             <div>
-              <div class="flex items-center justify-between mb-1.5">
+              <div class="flex items-center justify-between mb-1">
                 <label for="load" class="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
-                  Sanctioned Load (kW)
-                  <span id="badge-load-ocr" class="hidden px-1.5 py-0.2 rounded text-[10px] font-mono font-semibold bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800">OCR</span>
+                  Sanctioned Load
+                  <span id="badge-load-ocr" class="hidden px-1.5 py-0.2 rounded text-[10px] font-mono font-bold bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800">OCR</span>
                 </label>
-                <span class="text-[11px] text-slate-500 dark:text-slate-400">"Sanc Load" on bill</span>
+                <span class="text-[10px] text-slate-400">"Sanc Load" on bill</span>
               </div>
               <div class="relative">
                 <input type="number" id="load" step="0.1" min="0.1" value="3" required
-                  class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800/80 text-slate-900 dark:text-slate-100 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent transition">
-                <span class="absolute right-3 top-2.5 text-xs font-medium text-slate-400">kW</span>
+                  class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white/60 dark:bg-slate-800/60 text-slate-900 dark:text-slate-100 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent transition">
+                <span class="absolute right-3.5 top-2.5 text-xs font-bold text-slate-400">kW</span>
               </div>
             </div>
 
             <!-- Units Consumed -->
             <div>
-              <div class="flex items-center justify-between mb-1.5">
+              <div class="flex items-center justify-between mb-1">
                 <label for="units" class="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
-                  Units Consumed (kWh)
-                  <span id="badge-units-ocr" class="hidden px-1.5 py-0.2 rounded text-[10px] font-mono font-semibold bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800">OCR</span>
+                  Units Consumed
+                  <span id="badge-units-ocr" class="hidden px-1.5 py-0.2 rounded text-[10px] font-mono font-bold bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800">OCR</span>
                 </label>
-                <span class="text-[11px] text-slate-500 dark:text-slate-400">"Consumption (Units)"</span>
+                <span class="text-[10px] text-slate-400">"Consumption"</span>
               </div>
               <div class="relative">
                 <input type="number" id="units" step="0.01" min="0" placeholder="e.g. 94" required
-                  class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800/80 text-slate-900 dark:text-slate-100 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent transition">
-                <span class="absolute right-3 top-2.5 text-xs font-medium text-slate-400">kWh</span>
+                  class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white/60 dark:bg-slate-800/60 text-slate-900 dark:text-slate-100 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent transition">
+                <span class="absolute right-3.5 top-2.5 text-xs font-bold text-slate-400">kWh</span>
               </div>
             </div>
 
             <!-- Billed Amount -->
             <div>
-              <div class="flex items-center justify-between mb-1.5">
+              <div class="flex items-center justify-between mb-1">
                 <label for="amount" class="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
-                  Bill Amount on Paper (₹)
-                  <span id="badge-amount-ocr" class="hidden px-1.5 py-0.2 rounded text-[10px] font-mono font-semibold bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800">OCR</span>
+                  Bill Amount on Paper
+                  <span id="badge-amount-ocr" class="hidden px-1.5 py-0.2 rounded text-[10px] font-mono font-bold bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800">OCR</span>
                 </label>
-                <span class="text-[11px] text-slate-500 dark:text-slate-400">"Bill Amount (1-2)" net</span>
+                <span class="text-[10px] text-slate-400">"Bill Amount (1-2)" net</span>
               </div>
               <div class="relative">
-                <span class="absolute left-3.5 top-2.5 text-xs font-semibold text-slate-400">₹</span>
+                <span class="absolute left-3.5 top-2.5 text-xs font-bold text-slate-400">₹</span>
                 <input type="number" id="amount" step="0.01" min="0" placeholder="e.g. 173.94" required
-                  class="w-full pl-8 pr-3.5 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800/80 text-slate-900 dark:text-slate-100 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent transition">
+                  class="w-full pl-8 pr-3.5 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white/60 dark:bg-slate-800/60 text-slate-900 dark:text-slate-100 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent transition">
               </div>
             </div>
 
-            <!-- Subsidy Units (Gruha Jyothi) -->
+            <!-- Subsidy Units -->
             <div>
-              <div class="flex items-center justify-between mb-1.5">
+              <div class="flex items-center justify-between mb-1">
                 <label for="subsidy" class="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
-                  Subsidised Units (Gruha Jyothi)
-                  <span id="badge-subsidy-ocr" class="hidden px-1.5 py-0.2 rounded text-[10px] font-mono font-semibold bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800">OCR</span>
+                  Subsidised Units
+                  <span id="badge-subsidy-ocr" class="hidden px-1.5 py-0.2 rounded text-[10px] font-mono font-bold bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800">OCR</span>
                 </label>
-                <span class="text-[11px] text-slate-500 dark:text-slate-400">"Eligible for subsidy" (0 if none)</span>
+                <span class="text-[10px] text-slate-400">Gruha Jyothi (0 if none)</span>
               </div>
               <div class="relative">
                 <input type="number" id="subsidy" step="0.01" min="0" value="0" required
-                  class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800/80 text-slate-900 dark:text-slate-100 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent transition">
-                <span class="absolute right-3 top-2.5 text-xs font-medium text-slate-400">Units</span>
+                  class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white/60 dark:bg-slate-800/60 text-slate-900 dark:text-slate-100 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent transition">
+                <span class="absolute right-3.5 top-2.5 text-xs font-bold text-slate-400">Units</span>
               </div>
             </div>
 
-            <!-- Advanced Settings Accordion -->
-            <details id="advanced-details" class="group rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden bg-slate-50/50 dark:bg-slate-800/30 transition">
-              <summary class="px-4 py-3 cursor-pointer text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center justify-between select-none">
-                <div class="flex items-center gap-2">
-                  <svg class="w-4 h-4 text-slate-400 group-open:rotate-90 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
-                  </svg>
-                  <span>Advanced Settings & Multi-Month Options</span>
-                </div>
-                <span id="adv-badge" class="text-[10px] font-mono px-1.5 py-0.5 rounded bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-400">Optional</span>
+            <!-- Advanced Details -->
+            <details id="advanced-details" class="group pt-2 border-t border-slate-100 dark:border-slate-800 text-xs">
+              <summary class="cursor-pointer font-bold text-slate-500 dark:text-slate-400 hover:text-brand-600 dark:hover:text-brand-400 flex items-center justify-between py-1">
+                <span>Multi-Month & Advanced Settings</span>
+                <span class="transition-transform group-open:rotate-180">▾</span>
               </summary>
-              <div class="p-4 space-y-3.5 border-t border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/60">
-                <!-- Billing Days -->
+              <div class="mt-3 space-y-3 pl-1">
                 <div>
-                  <div class="flex items-center justify-between mb-1">
-                    <label for="days" class="text-[11px] font-semibold text-slate-700 dark:text-slate-300">Billing Days (Period length)</label>
-                    <span class="text-[10px] text-slate-400">Fixed charge prorated if &gt; 45</span>
-                  </div>
-                  <input type="number" id="days" step="1" min="1" placeholder="30 (or e.g. 61 for bi-monthly)"
-                    class="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs text-slate-900 dark:text-slate-100 font-medium focus:ring-1 focus:ring-brand-500 focus:outline-none">
+                  <label for="days" class="text-[11px] font-bold text-slate-600 dark:text-slate-300 block mb-1">Billing Days (only if &gt; 45)</label>
+                  <input type="number" id="days" placeholder="e.g. 61" class="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs font-medium">
                 </div>
-
-                <!-- FPPCA Segmented Rates -->
                 <div>
-                  <div class="flex items-center justify-between mb-1">
-                    <label for="fppca" class="text-[11px] font-semibold text-slate-700 dark:text-slate-300">FPPCA Segmented Lines</label>
-                    <span class="text-[10px] text-slate-400">Format: units@rate</span>
-                  </div>
-                  <input type="text" id="fppca" placeholder="e.g. 236.15@0.02,98.85@0.32"
-                    class="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs font-mono text-slate-900 dark:text-slate-100 focus:ring-1 focus:ring-brand-500 focus:outline-none">
-                  <div class="mt-1 flex gap-1.5">
-                    <button type="button" onclick="document.getElementById('fppca').value='236.15@0.02,98.85@0.32'" class="text-[10px] text-brand-600 dark:text-brand-400 hover:underline">
-                      + Insert Sample FPPCA segments
-                    </button>
-                  </div>
+                  <label for="fppca" class="text-[11px] font-bold text-slate-600 dark:text-slate-300 block mb-1">FPPCA Lines (units@rate)</label>
+                  <input type="text" id="fppca" placeholder="e.g. 236.15@0.02, 98.85@0.32" class="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs font-medium font-mono">
                 </div>
-
-                <!-- Peak Demand & Penalty -->
-                <div class="grid grid-cols-2 gap-3">
+                <div class="grid grid-cols-2 gap-2">
                   <div>
-                    <label for="recorded-md" class="text-[11px] font-semibold text-slate-700 dark:text-slate-300 block mb-1">Recorded MD (kW)</label>
-                    <input type="number" id="recorded-md" step="0.01" min="0" placeholder="e.g. 2.75"
-                      class="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs text-slate-900 dark:text-slate-100 font-medium focus:ring-1 focus:ring-brand-500 focus:outline-none">
+                    <label for="recorded-md" class="text-[11px] font-bold text-slate-600 dark:text-slate-300 block mb-1">Recorded MD (kW)</label>
+                    <input type="number" id="recorded-md" step="0.01" placeholder="e.g. 2.75" class="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs font-medium">
                   </div>
                   <div>
-                    <label for="md-penalty" class="text-[11px] font-semibold text-slate-700 dark:text-slate-300 block mb-1">MD Penalty (₹)</label>
-                    <input type="number" id="md-penalty" step="0.01" min="0" placeholder="e.g. 337.50"
-                      class="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs text-slate-900 dark:text-slate-100 font-medium focus:ring-1 focus:ring-brand-500 focus:outline-none">
+                    <label for="md-penalty" class="text-[11px] font-bold text-slate-600 dark:text-slate-300 block mb-1">Penalty (₹)</label>
+                    <input type="number" id="md-penalty" step="0.01" placeholder="e.g. 337.50" class="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs font-medium">
                   </div>
                 </div>
               </div>
             </details>
 
-            <!-- Submit Button -->
-            <button id="btn-submit" type="submit"
-              class="w-full py-3.5 px-5 rounded-xl font-bold text-sm text-white bg-gradient-to-r from-brand-600 to-emerald-600 hover:from-brand-500 hover:to-emerald-500 active:scale-[0.99] shadow-lg shadow-brand-600/25 transition flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-wait">
-              <svg id="submit-icon" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-              <span id="submit-spinner" class="hidden w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
-              <span id="btn-submit-text">Verify Electricity Bill</span>
+            <!-- Big Glowing Action Button -->
+            <button id="btn-submit" type="submit" class="w-full mt-2 relative overflow-hidden group py-3.5 px-6 rounded-2xl font-bold text-sm text-white bg-gradient-to-r from-brand-600 via-emerald-500 to-teal-500 hover:from-brand-500 hover:to-emerald-400 shadow-lg shadow-brand-500/30 hover:shadow-brand-500/50 hover:scale-[1.02] active:scale-[0.98] transition-all duration-200">
+              <span class="absolute inset-0 w-full h-full bg-white/20 transform -skew-x-12 -translate-x-full group-hover:translate-x-full transition-transform duration-1000"></span>
+              <span class="relative flex items-center justify-center gap-2">
+                <span id="submit-spinner" class="inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin hidden"></span>
+                <svg id="submit-icon" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <span id="btn-submit-text">Verify Electricity Bill</span>
+              </span>
             </button>
           </form>
         </div>
-
       </div>
 
-      <!-- RIGHT COLUMN: Verification Results & Savings Coach (lg:col-span-7) -->
+      <!-- RIGHT COLUMN: Results & Audit Dashboard (lg:col-span-7) -->
       <div class="lg:col-span-7 space-y-6">
 
-        <!-- Initial Placeholder State (When no verification has run yet) -->
-        <div id="empty-state-card" class="bg-white dark:bg-slate-900 rounded-2xl p-8 shadow-sm border border-slate-200 dark:border-slate-800 text-center space-y-6">
-          <div class="w-16 h-16 rounded-2xl bg-brand-50 dark:bg-brand-950/60 border border-brand-200 dark:border-brand-800/80 text-brand-600 dark:text-brand-400 mx-auto flex items-center justify-center shadow-inner">
-            <svg class="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+        <!-- Initial Placeholder State -->
+        <div id="empty-state-card" class="bg-white/80 dark:bg-slate-900/60 glass rounded-3xl p-10 text-center border border-dashed border-slate-300 dark:border-slate-800 shadow-sm flex flex-col items-center justify-center min-h-[460px]">
+          <div class="w-20 h-20 rounded-3xl bg-gradient-to-tr from-brand-100/80 to-emerald-50 dark:from-slate-800 dark:to-brand-950 flex items-center justify-center text-brand-600 dark:text-brand-400 mb-4 shadow-inner ring-8 ring-brand-50/50 dark:ring-brand-950/30">
+            <svg class="w-10 h-10 animate-float" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
             </svg>
           </div>
-
-          <div class="max-w-md mx-auto">
-            <h3 class="text-lg font-bold text-slate-900 dark:text-white">Awaiting Bill Data</h3>
-            <p class="text-sm text-slate-500 dark:text-slate-400 mt-1.5">
-              Upload an electricity bill photo on the left or click any quick demo above to generate an immediate tariff audit report.
-            </p>
-          </div>
-
-          <!-- Feature Highlights Grid -->
-          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-left">
-            <div class="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/60 dark:border-slate-700/50">
-              <div class="text-brand-600 dark:text-brand-400 font-bold text-xs flex items-center gap-1.5 mb-1">
-                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" /></svg>
-                Double-Entry Slab Audit
-              </div>
-              <p class="text-xs text-slate-600 dark:text-slate-400">Validates telescopic slab brackets and fixed charges per kW against regulatory tariff orders.</p>
-            </div>
-
-            <div class="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/60 dark:border-slate-700/50">
-              <div class="text-emerald-600 dark:text-emerald-400 font-bold text-xs flex items-center gap-1.5 mb-1">
-                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                Gruha Jyothi Subsidy
-              </div>
-              <p class="text-xs text-slate-600 dark:text-slate-400">Calculates zero-bill eligibility and reconciles government subsidy credit line items.</p>
-            </div>
-
-            <div class="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/60 dark:border-slate-700/50">
-              <div class="text-sky-600 dark:text-sky-400 font-bold text-xs flex items-center gap-1.5 mb-1">
-                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
-                FPPCA Segments & Multi-Month
-              </div>
-              <p class="text-xs text-slate-600 dark:text-slate-400">Prorates fixed charges and accurately models fuel adjustment charges spanning irregular periods.</p>
-            </div>
-
-            <div class="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/60 dark:border-slate-700/50">
-              <div class="text-purple-600 dark:text-purple-400 font-bold text-xs flex items-center gap-1.5 mb-1">
-                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" /></svg>
-                AI Savings Coach
-              </div>
-              <p class="text-xs text-slate-600 dark:text-slate-400">Actionable conservation tips, appliance runtime equivalence, and carbon offset statistics.</p>
-            </div>
-          </div>
+          <h3 class="text-lg font-bold text-slate-800 dark:text-slate-200">Audit Results Will Appear Here</h3>
+          <p class="text-xs text-slate-500 dark:text-slate-400 max-w-sm mt-1.5 leading-relaxed">
+            Upload your bill on the left or click any of the quick demo buttons to see an instant line-by-line tariff audit and savings advice.
+          </p>
         </div>
 
-        <!-- Verification Results Container (Populated dynamically) -->
-        <div id="results-container" class="hidden space-y-6">
+        <!-- Verification Results Dashboard (Hidden Initially) -->
+        <div id="results-container" class="space-y-6 hidden animate-fade-in-up">
 
-          <!-- Hero Verification Status Card -->
-          <div id="hero-status-card" class="rounded-2xl p-6 shadow-sm border transition-all">
-            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-              <div class="flex items-center space-x-3.5">
-                <div id="hero-status-icon" class="w-12 h-12 rounded-xl flex items-center justify-center shrink-0"></div>
-                <div>
-                  <h3 id="hero-status-title" class="text-lg font-bold"></h3>
-                  <p id="hero-status-desc" class="text-xs mt-0.5"></p>
-                </div>
+          <!-- Hero Verification Result Banner -->
+          <div id="hero-status-card" class="rounded-3xl p-6 glass shadow-lg border transition-all duration-300 flex items-center justify-between gap-4">
+            <div class="flex items-center space-x-4">
+              <div id="hero-status-icon" class="w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 shadow-md"></div>
+              <div>
+                <h3 id="hero-status-title" class="text-lg font-extrabold tracking-tight"></h3>
+                <p id="hero-status-desc" class="text-xs mt-0.5 leading-relaxed"></p>
               </div>
-              <div id="hero-variance-pill" class="inline-flex items-center px-3.5 py-1.5 rounded-full font-mono text-xs font-bold shrink-0"></div>
             </div>
-
-            <!-- Notes List -->
-            <div id="result-notes-container" class="mt-4 pt-4 border-t hidden space-y-1.5 text-xs"></div>
+            <div id="hero-variance-pill" class="shrink-0 px-3 py-1.5 rounded-full font-mono text-xs font-bold shadow-sm"></div>
           </div>
 
-          <!-- Comparison Numbers Grid -->
-          <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <!-- Billed Amount Card -->
-            <div class="bg-white dark:bg-slate-900 rounded-2xl p-4 border border-slate-200 dark:border-slate-800 shadow-sm">
-              <span class="text-xs font-semibold text-slate-500 dark:text-slate-400 block mb-1">Utility Billed</span>
-              <div class="flex items-baseline space-x-1">
-                <span class="text-xs font-bold text-slate-400">₹</span>
-                <span id="metric-billed" class="text-2xl font-extrabold text-slate-900 dark:text-white font-mono">0.00</span>
-              </div>
-              <span class="text-[11px] text-slate-400 mt-1 block">As stated on invoice</span>
+          <!-- Quick Metrics Cards -->
+          <div class="grid grid-cols-3 gap-3 sm:gap-4">
+            <div class="p-4 rounded-2xl bg-white/90 dark:bg-slate-900/80 glass border border-slate-200/80 dark:border-slate-800 shadow-sm text-center">
+              <span class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Billed On Paper</span>
+              <p class="text-xl sm:text-2xl font-extrabold font-mono mt-1 text-slate-900 dark:text-white">
+                ₹<span id="metric-billed">0.00</span>
+              </p>
             </div>
-
-            <!-- Recomputed Card -->
-            <div class="bg-white dark:bg-slate-900 rounded-2xl p-4 border border-slate-200 dark:border-slate-800 shadow-sm">
-              <span class="text-xs font-semibold text-slate-500 dark:text-slate-400 block mb-1">BillWise Recomputed</span>
-              <div class="flex items-baseline space-x-1">
-                <span class="text-xs font-bold text-brand-600 dark:text-brand-400">₹</span>
-                <span id="metric-recomputed" class="text-2xl font-extrabold text-brand-600 dark:text-brand-400 font-mono">0.00</span>
-              </div>
-              <span class="text-[11px] text-slate-400 mt-1 block">Tariff engine net</span>
+            <div class="p-4 rounded-2xl bg-white/90 dark:bg-slate-900/80 glass border border-slate-200/80 dark:border-slate-800 shadow-sm text-center">
+              <span class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Calculated</span>
+              <p class="text-xl sm:text-2xl font-extrabold font-mono mt-1 text-brand-600 dark:text-brand-400">
+                ₹<span id="metric-recomputed">0.00</span>
+              </p>
             </div>
-
-            <!-- Variance Card -->
-            <div class="bg-white dark:bg-slate-900 rounded-2xl p-4 border border-slate-200 dark:border-slate-800 shadow-sm">
-              <span class="text-xs font-semibold text-slate-500 dark:text-slate-400 block mb-1">Variance Gap</span>
-              <div class="flex items-baseline space-x-1">
-                <span class="text-xs font-bold text-slate-400">₹</span>
-                <span id="metric-variance" class="text-2xl font-extrabold font-mono">0.00</span>
-              </div>
-              <span id="metric-variance-note" class="text-[11px] mt-1 block font-medium">Within tolerance</span>
+            <div class="p-4 rounded-2xl bg-white/90 dark:bg-slate-900/80 glass border border-slate-200/80 dark:border-slate-800 shadow-sm text-center">
+              <span class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Difference</span>
+              <p id="metric-variance" class="text-xl sm:text-2xl font-extrabold font-mono mt-1">₹0.00</p>
             </div>
           </div>
 
-          <!-- Itemized Tariff Breakdown Card -->
-          <div class="bg-white dark:bg-slate-900 rounded-2xl p-6 shadow-sm border border-slate-200 dark:border-slate-800">
-            <div class="flex items-center justify-between mb-4">
-              <h3 class="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                <svg class="w-4 h-4 text-brand-600 dark:text-brand-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
-                </svg>
-                Itemized Tariff Calculation Breakdown
-              </h3>
-              <span class="text-[11px] font-mono text-slate-400">Rule-as-Data Engine</span>
+          <!-- Notes Container -->
+          <div id="result-notes-container" class="p-3.5 rounded-2xl bg-amber-50/80 dark:bg-amber-950/30 border border-amber-200/60 dark:border-amber-800/50 text-xs text-amber-800 dark:text-amber-300 hidden space-y-1"></div>
+
+          <!-- Itemized Breakdown Table -->
+          <div class="bg-white/90 dark:bg-slate-900/80 glass rounded-3xl p-6 shadow-sm border border-slate-200/80 dark:border-slate-800">
+            <div class="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800 mb-3">
+              <h4 class="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                <span>📋</span> Itemized Tariff Calculation
+              </h4>
+              <span class="text-[11px] font-mono text-slate-400">BESCOM LT-1</span>
             </div>
 
             <div class="overflow-x-auto">
               <table class="w-full text-left text-xs">
                 <thead>
-                  <tr class="border-b border-slate-200 dark:border-slate-800 text-slate-400 font-semibold">
-                    <th class="py-2.5 pr-4">Component</th>
-                    <th class="py-2.5 px-3 text-right">Units / kW</th>
-                    <th class="py-2.5 px-3 text-right">Tariff Rate</th>
-                    <th class="py-2.5 pl-4 text-right">Amount (₹)</th>
+                  <tr class="text-[10px] font-bold uppercase tracking-wider text-slate-400 border-b border-slate-100 dark:border-slate-800">
+                    <th class="py-2 pr-4">Description</th>
+                    <th class="py-2 px-3 text-right">Units / kW</th>
+                    <th class="py-2 px-3 text-right">Rate</th>
+                    <th class="py-2 pl-4 text-right">Amount</th>
                   </tr>
                 </thead>
-                <tbody id="breakdown-tbody" class="divide-y divide-slate-100 dark:divide-slate-800/80 font-medium">
-                  <!-- Populated via JS -->
-                </tbody>
+                <tbody id="breakdown-tbody" class="divide-y divide-slate-100 dark:divide-slate-800/60"></tbody>
               </table>
             </div>
 
-            <!-- Subsidy credit callout row if subsidy applied -->
-            <div id="subsidy-breakdown-box" class="mt-4 p-3.5 rounded-xl bg-brand-50/70 dark:bg-brand-950/40 border border-brand-200/70 dark:border-brand-900/60 hidden">
-              <div class="flex items-center justify-between text-xs font-semibold text-brand-800 dark:text-brand-300">
-                <div class="flex items-center gap-1.5">
-                  <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" /></svg>
-                  <span>Gruha Jyothi Government Subsidy Deduction</span>
-                </div>
-                <span id="subsidy-breakdown-total" class="font-mono font-bold">- ₹0.00</span>
+            <!-- Subsidy Credit Callout -->
+            <div id="subsidy-breakdown-box" class="mt-4 p-3.5 rounded-2xl bg-emerald-50/80 dark:bg-emerald-950/30 border border-emerald-200/60 dark:border-emerald-800/50 text-xs flex items-center justify-between gap-3 hidden">
+              <div>
+                <span class="font-bold text-emerald-900 dark:text-emerald-100 flex items-center gap-1.5">
+                  <span>🎁</span> Gruha Jyothi Subsidy Applied
+                </span>
+                <p id="subsidy-breakdown-text" class="text-[11px] text-emerald-700 dark:text-emerald-300 mt-0.5"></p>
               </div>
-              <p id="subsidy-breakdown-text" class="text-[11px] text-brand-700 dark:text-brand-400 mt-1"></p>
+              <span id="subsidy-breakdown-total" class="font-mono font-extrabold text-sm text-emerald-700 dark:text-emerald-300 shrink-0"></span>
             </div>
           </div>
 
-          <!-- Savings Coach Section -->
-          <div class="bg-white dark:bg-slate-900 rounded-2xl p-6 shadow-sm border border-slate-200 dark:border-slate-800 space-y-4">
-            <div class="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
-              <div class="flex items-center gap-2">
-                <div class="w-7 h-7 rounded-lg bg-emerald-100 dark:bg-emerald-950 text-emerald-600 dark:text-emerald-400 flex items-center justify-center">
-                  <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
-                  </svg>
-                </div>
-                <div>
-                  <h3 class="text-sm font-bold text-slate-900 dark:text-white">Energy & Savings Coach</h3>
-                  <p class="text-[11px] text-slate-400">Rule-based analytical advice and energy optimization insights</p>
-                </div>
-              </div>
-              <div id="coach-marginal-pill" class="text-right hidden sm:block">
-                <span class="text-[10px] text-slate-400 block">Marginal cost / kWh</span>
-                <span id="coach-marginal-val" class="font-mono text-xs font-bold text-slate-700 dark:text-slate-300">₹0.00</span>
-              </div>
+          <!-- Savings Coach Dashboard -->
+          <div class="bg-gradient-to-tr from-white via-white to-brand-50/40 dark:from-slate-900 dark:via-slate-900 dark:to-brand-950/20 glass rounded-3xl p-6 shadow-sm border border-slate-200/80 dark:border-slate-800">
+            <div class="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800 mb-4">
+              <h4 class="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                <span>💡</span> AI Savings Coach
+              </h4>
+              <span id="coach-marginal-pill" class="text-[11px] font-mono px-2.5 py-0.5 rounded-full bg-brand-100 dark:bg-brand-950 text-brand-700 dark:text-brand-300 border border-brand-200 dark:border-brand-800">
+                +1 unit = <b id="coach-marginal-val">₹0.00</b>
+              </span>
             </div>
 
-            <!-- Coach Summary Bullets -->
-            <div id="coach-summary-box" class="space-y-2 text-xs text-slate-600 dark:text-slate-300"></div>
+            <!-- Summary Insights -->
+            <div id="coach-summary-box" class="space-y-1.5 text-xs text-slate-700 dark:text-slate-300 mb-4"></div>
 
-            <!-- Coach Tips Grid -->
-            <div id="coach-tips-grid" class="grid grid-cols-1 md:grid-cols-2 gap-3 pt-2"></div>
-          </div>
-
-          <!-- Bottom Actions Bar -->
-          <div class="flex flex-wrap items-center justify-between gap-3 pt-2">
-            <button type="button" onclick="window.print()" class="px-4 py-2 rounded-xl text-xs font-semibold bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 flex items-center gap-1.5 shadow-sm transition">
-              <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" /></svg>
-              Print / Save PDF Report
-            </button>
-            <button type="button" onclick="resetApp()" class="px-4 py-2 rounded-xl text-xs font-semibold text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200 transition">
-              Clear & Verify Another Bill
-            </button>
+            <!-- Actionable Recommendations -->
+            <div id="coach-tips-grid" class="grid grid-cols-1 sm:grid-cols-2 gap-3"></div>
           </div>
 
         </div>
@@ -566,52 +476,34 @@
 
   </main>
 
-  <!-- Toast Notification Container -->
-  <div id="toast-container" class="fixed bottom-5 right-5 z-50 flex flex-col space-y-2 max-w-sm w-full pointer-events-none"></div>
+  <!-- Toast Container -->
+  <div id="toast-container" class="fixed bottom-5 right-5 z-50 flex flex-col space-y-2 pointer-events-none"></div>
 
-  <!-- Client-side Logic Script -->
+  <!-- JavaScript Application Logic -->
   <script>
-    // State management
-    const state = {
-      scanExtra: {},
-      selectedFile: null,
-      isScanning: false,
-      isSubmitting: false,
-    };
-
     const $ = id => document.getElementById(id);
-    const esc = t => String(t ?? '').replace(/[&<>]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;"}[c]));
+    const esc = t => String(t ?? '').replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
     const rs = val => '₹' + Number(val || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
+    const state = {
+      isSubmitting: false,
+      selectedFile: null,
+      scanExtra: {}
+    };
+
     // Toast Notification System
-    function showToast(message, type = 'info', duration = 4000) {
+    function showToast(message, type = 'info', duration = 3500) {
       const container = $('toast-container');
       const toast = document.createElement('div');
-      
-      const typeStyles = {
-        success: 'bg-emerald-600 text-white',
-        warning: 'bg-amber-500 text-white',
-        error: 'bg-red-600 text-white',
-        info: 'bg-slate-800 text-white dark:bg-slate-700',
+      const colors = {
+        success: 'bg-emerald-600 text-white shadow-emerald-500/30',
+        warning: 'bg-amber-500 text-white shadow-amber-500/30',
+        error: 'bg-red-600 text-white shadow-red-500/30',
+        info: 'bg-slate-900 dark:bg-slate-800 text-white shadow-slate-900/30'
       };
 
-      const icons = {
-        success: '<svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>',
-        warning: '<svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>',
-        error: '<svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"/></svg>',
-        info: '<svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>',
-      };
-
-      toast.className = `${typeStyles[type] || typeStyles.info} pointer-events-auto p-3.5 rounded-xl shadow-xl flex items-center justify-between text-xs font-semibold gap-3 transform transition-all duration-300 translate-y-2 opacity-0`;
-      toast.innerHTML = `
-        <div class="flex items-center gap-2">
-          ${icons[type] || icons.info}
-          <span>${esc(message)}</span>
-        </div>
-        <button class="text-white/80 hover:text-white transition" onclick="this.parentElement.remove()">
-          <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
-        </button>
-      `;
+      toast.className = `px-4 py-2.5 rounded-xl text-xs font-semibold shadow-lg flex items-center gap-2 pointer-events-auto transition-all duration-300 transform translate-y-2 opacity-0 ${colors[type] || colors.info}`;
+      toast.innerHTML = `<span>${esc(message)}</span>`;
 
       container.appendChild(toast);
       requestAnimationFrame(() => {
@@ -626,409 +518,7 @@
       }
     }
 
-    // Health check ping
-    async function checkHealth() {
-      const dot = $('health-dot'), txt = $('health-text');
-      try {
-        const r = await fetch('/health', { signal: AbortSignal.timeout(2000) });
-        const ctype = r.headers.get('content-type') || '';
-        if (r.ok && ctype.includes('application/json')) {
-          dot.className = 'w-2 h-2 rounded-full bg-emerald-500';
-          txt.textContent = 'FastAPI Cloud Run';
-          return true;
-        } else {
-          dot.className = 'w-2 h-2 rounded-full bg-emerald-500';
-          txt.textContent = 'Firebase Cloud Ready';
-          return false;
-        }
-      } catch {
-        dot.className = 'w-2 h-2 rounded-full bg-emerald-500';
-        txt.textContent = 'Browser Neural Engine';
-        return false;
-      }
-    }
-    checkHealth();
-
-    // ==========================================
-    // CLIENT-SIDE OCR ENGINE & PARSER
-    // ==========================================
-    function num(s) {
-      if (!s) return 0;
-      s = s.trim();
-      if (/,\d{2}$/.test(s)) {
-        s = s.slice(0, -3) + '.' + s.slice(-2);
-      }
-      return parseFloat(s.replace(/,/g, ''));
-    }
-
-    function firstMatch(patterns, text) {
-      for (const p of patterns) {
-        const m = text.match(p);
-        if (m) return m;
-      }
-      return null;
-    }
-
-    const MONEY_PAT = "(\\d[\\d,]*[.,]\\d{2})";
-    const QTY_PAT = "(\\d[\\d,]*\\.?\\d*)";
-
-    function parseBillText(text) {
-      const out = {};
-      const warnings = [];
-
-      // Billing period & days
-      const dateM = text.match(/(\d{2}\/\d{2}\/\d{4})\D{1,4}(\d{2}\/\d{2}\/\d{4})/);
-      if (dateM) {
-        out.billing_start = dateM[1];
-        out.billing_end = dateM[2];
-        try {
-          const p1 = dateM[1].split('/'), p2 = dateM[2].split('/');
-          const d1 = new Date(p1[2], p1[1] - 1, p1[0]);
-          const d2 = new Date(p2[2], p2[1] - 1, p2[0]);
-          const diffDays = Math.round((d2 - d1) / (1000 * 60 * 60 * 24));
-          if (diffDays > 0) out.billing_days = diffDays;
-        } catch (e) {}
-      }
-
-      // Units
-      const unitsM = firstMatch([new RegExp("Consumption\\s*\\(?Units\\)?\\D{0,8}" + QTY_PAT, "i")], text);
-      if (unitsM) {
-        out.units_kwh = num(unitsM[1]);
-      }
-
-      // Meter readings cross check
-      const pres = firstMatch([/Pres\W+\w+\W+(\d{3,7})\b/i], text);
-      const prev = firstMatch([/Pr[eo][vw]\W+\w+\W+(\d{3,7})\b/i], text);
-      const constM = firstMatch([/Constant\D{0,4}(\d+)/i], text);
-      if (pres && prev && constM && parseInt(constM[1], 10) === 1) {
-        const pVal = parseInt(pres[1], 10), prVal = parseInt(prev[1], 10);
-        if (pVal > prVal) {
-          const diff = pVal - prVal;
-          if (out.units_kwh == null) {
-            out.units_kwh = diff;
-          } else if (Math.abs(out.units_kwh - diff) > 0.5) {
-            warnings.push(`Printed units read as ${out.units_kwh}, but meter readings give ${diff}. Using ${diff}.`);
-            out.units_kwh = diff;
-          }
-        }
-      }
-
-      // Sanctioned Load
-      const loadM = firstMatch([/Load\s*(\d+\.?\d*)\s*KW/i, /(\d+\.?\d*)\s*KW\s+\d+\.?\d*\s+\d+\.\d{2}/i], text);
-      if (loadM) {
-        out.sanctioned_load_kw = num(loadM[1]);
-      }
-
-      // Amount billed ("Bill Amount (1-2)" net)
-      const amtM = firstMatch([new RegExp("Am\\w{2,4}\\s*\\(\\s*\\w\\s*-\\s*\\w\\s*\\)\\s*" + MONEY_PAT, "i")], text);
-      if (amtM) {
-        out.amount_billed = num(amtM[1]);
-      } else {
-        const st1 = firstMatch([new RegExp("Sub-?\\s*Total-?\\s*1\\D{0,10}" + MONEY_PAT, "i")], text);
-        const st2 = firstMatch([new RegExp("Sub-?\\s*Total-?\\s*2\\D{0,10}" + MONEY_PAT, "i")], text);
-        if (st1 && st2) {
-          out.amount_billed = Math.round((num(st1[1]) - num(st2[1])) * 100) / 100;
-        } else if (st1) {
-          out.amount_billed = num(st1[1]);
-        }
-      }
-
-      // Recorded MD
-      const rmd = firstMatch([/Recorded\s*M\w{1,2}\D{0,4}(\d+\.?\d*)/i], text);
-      if (rmd) out.recorded_md_kw = num(rmd[1]);
-
-      // Penalty
-      const pen = firstMatch([new RegExp("Load\\W{0,3}\\w{0,4}\\W{0,2}P[ea]n\\w*\\s*" + MONEY_PAT, "i")], text);
-      if (pen && num(pen[1]) > 0) out.md_penalty = num(pen[1]);
-
-      // Subsidy units
-      const subM = firstMatch([new RegExp("Eligible\\s*\\w{2,4}\\s*subsid\\w*\\D{0,4}" + QTY_PAT, "i")], text);
-      if (subM) {
-        out.subsidy_units = num(subM[1]);
-      } else {
-        const c = firstMatch([new RegExp("Un\\w{2,3}\\s*charge\\w*\\D{0,4}" + QTY_PAT, "i")], text);
-        const e = firstMatch([new RegExp("Entit\\S*\\s*Un\\w{2,3}\\D{0,4}" + QTY_PAT, "i")], text);
-        if (c && out.units_kwh != null && num(c[1]) <= out.units_kwh) {
-          out.subsidy_units = Math.round((out.units_kwh - num(c[1])) * 100) / 100;
-        } else if (e) {
-          const ent = num(e[1]);
-          const days = out.billing_days;
-          out.subsidy_units = days && days > 45 ? Math.round((ent * days / 30) * 100) / 100 : ent;
-        } else {
-          out.subsidy_units = 0.0;
-        }
-      }
-
-      out.warnings = warnings;
-      out.missing = ["units_kwh", "sanctioned_load_kw", "amount_billed"].filter(k => out[k] == null);
-      return out;
-    }
-
-    // ==========================================
-    // CLIENT-SIDE TARIFF ENGINE & SAVINGS COACH
-    // ==========================================
-    function clientComputeBill(units, sanctionedLoadKw, billingDays, fppcaSegments) {
-      if (units < 0) throw new Error("Units must be >= 0");
-      const lineItems = [];
-      let energyTotal = 0;
-      let otherTotal = 0;
-
-      const multi = Boolean(billingDays && billingDays > 45);
-      const fixedRate = 150.0;
-      let fixedAmt = 0;
-      let billedKw = sanctionedLoadKw;
-      let label = "Fixed charges";
-
-      if (multi) {
-        fixedAmt = Math.round(fixedRate * sanctionedLoadKw * billingDays / 30 * 100) / 100;
-        billedKw = Math.round(sanctionedLoadKw * billingDays / 30 * 100) / 100;
-        label = `Fixed charges (${billingDays} days)`;
-      } else {
-        fixedAmt = Math.round(fixedRate * sanctionedLoadKw * 100) / 100;
-      }
-      lineItems.push({ type: "fixed", description: label, quantity: billedKw, rate: fixedRate, amount: fixedAmt });
-      otherTotal += fixedAmt;
-
-      // Energy charges (BESCOM LT-1 flat slab Rs 5.80)
-      const energyAmt = Math.round(units * 5.80 * 100) / 100;
-      lineItems.push({ type: "energy", description: "Energy charges", quantity: units, rate: 5.80, amount: energyAmt });
-      energyTotal += energyAmt;
-
-      // FPPCA fuel adjustment
-      if (fppcaSegments && fppcaSegments.length > 0) {
-        const segTotal = fppcaSegments.reduce((acc, s) => acc + s[0], 0);
-        for (const [sUnits, sRate] of fppcaSegments) {
-          const part = Math.round(units * sUnits / segTotal * 100) / 100;
-          const amt = Math.round(part * sRate * 100) / 100;
-          lineItems.push({ type: "fuel_adj", description: `FPPCA charges @ ${sRate}`, quantity: part, rate: sRate, amount: amt });
-          otherTotal += amt;
-        }
-      } else {
-        const fppcaAmt = Math.round(units * -0.23 * 100) / 100;
-        lineItems.push({ type: "fuel_adj", description: "FPPCA charges", quantity: units, rate: -0.23, amount: fppcaAmt });
-        otherTotal += fppcaAmt;
-      }
-
-      // P&G Surcharge
-      const pgAmt = Math.round(units * 0.35 * 100) / 100;
-      lineItems.push({ type: "surcharge", description: "P&G surcharge (GoK portion)", quantity: units, rate: 0.35, amount: pgAmt });
-      otherTotal += pgAmt;
-
-      // Tax 9% on energy charges
-      const taxAmt = Math.round(energyTotal * 0.09 * 100) / 100;
-      lineItems.push({ type: "tax", description: "Tax @ 9% on energy", quantity: null, rate: 9.0, amount: taxAmt });
-
-      const total = Math.round((energyTotal + otherTotal + taxAmt) * 100) / 100;
-      return { units, lineItems, total, energyTotal, otherTotal, tax: taxAmt };
-    }
-
-    function clientComputeNetBill(units, loadKw, subsidyUnits = 0, billingDays = null, fppcaSegments = null) {
-      const gross = clientComputeBill(units, loadKw, billingDays, fppcaSegments);
-      if (subsidyUnits <= 0) {
-        return { gross, subsidy: null, net: gross.total };
-      }
-      const subUnits = Math.min(subsidyUnits, units);
-      const sub = clientComputeBill(subUnits, loadKw, billingDays, fppcaSegments);
-      return { gross, subsidy: sub, net: Math.round((gross.total - sub.total) * 100) / 100 };
-    }
-
-    function clientVerifyBill({ units_kwh, sanctioned_load_kw, amount_billed, subsidy_units = 0, billing_days = null, fppca = null, md_penalty = null, recorded_md_kw = null }) {
-      let fppcaSegments = null;
-      if (fppca && fppca.trim()) {
-        fppcaSegments = [];
-        for (const part of fppca.trim().split(/[,\s;]+/)) {
-          if (!part) continue;
-          const [u, r] = part.split('@');
-          if (u && r) fppcaSegments.push([parseFloat(u), parseFloat(r)]);
-        }
-      }
-
-      const netRes = clientComputeNetBill(units_kwh, sanctioned_load_kw, subsidy_units, billing_days, fppcaSegments);
-      const recomputed = netRes.net;
-      const billed = Math.round(amount_billed * 100) / 100;
-      const variance = Math.round((billed - recomputed) * 100) / 100;
-      const pct = recomputed ? (Math.abs(variance) / recomputed * 100) : (variance === 0 ? 0 : 100);
-      const flagged = Math.abs(variance) > 5.0 && pct > 1.0;
-
-      let message = "Bill matches the tariff within tolerance.";
-      if (flagged) {
-        message = variance > 0
-          ? `Possible overcharge of Rs ${variance.toFixed(2)} versus official tariff.`
-          : `Billed amount is Rs ${Math.abs(variance).toFixed(2)} lower than the tariff calculation.`;
-      }
-
-      const notes = [];
-      if (billing_days && billing_days > 45 && (!fppcaSegments || fppcaSegments.length === 0)) {
-        notes.push("This looks like a multi-month bill. Enter the FPPCA lines (units@rate) in the advanced box for an accurate check.");
-      }
-
-      // Savings Coach Calculations
-      const days = billing_days || 30;
-      const perDay = units_kwh / days;
-      const netNext = clientComputeNetBill(units_kwh + 1, sanctioned_load_kw, subsidy_units, billing_days, fppcaSegments).net;
-      const marginal = Math.max(0, Math.round((netNext - recomputed) * 100) / 100);
-
-      const summary = [`You used ${units_kwh} units in ${days} days (about ${perDay.toFixed(1)} units a day).`];
-      if (subsidy_units > 0) {
-        const covered = Math.min(units_kwh, subsidy_units);
-        summary.push(`${covered} of those units were covered by the Gruha Jyothi subsidy, so you were charged for ${Math.max(units_kwh - covered, 0)}.`);
-        summary.push(`The full bill would have been Rs ${netRes.gross.total.toFixed(2)}. The subsidy took off Rs ${(netRes.subsidy ? netRes.subsidy.total : 0).toFixed(2)}, leaving Rs ${recomputed.toFixed(2)}.`);
-      } else {
-        summary.push(`No subsidy applies to this bill, so you pay Rs ${recomputed.toFixed(2)}.`);
-      }
-      if (marginal > 0) {
-        summary.push(`Each extra unit costs you about Rs ${marginal.toFixed(2)} (energy, surcharges and tax together).`);
-      }
-
-      const tips = [];
-      if (flagged) {
-        tips.push({
-          title: "Your bill may be wrong",
-          text: `Your bill differs from our calculation by Rs ${Math.abs(variance).toFixed(2)}. Ask your BESCOM section office for the itemised calculation and meter-reading history, and confirm that your tariff category and sanctioned load are correct.`
-        });
-      }
-
-      const CO2_KG_PER_KWH = 0.71;
-      if (subsidy_units > 0 && units_kwh > subsidy_units) {
-        const over = units_kwh - subsidy_units;
-        const netAtSub = clientComputeNetBill(subsidy_units, sanctioned_load_kw, subsidy_units, billing_days, fppcaSegments).net;
-        const saving = Math.round((recomputed - netAtSub) * 100) / 100;
-        const overPerDay = over / days;
-        const allowance = subsidy_units / days;
-        tips.push({
-          title: `Stay within your free limit to save up to Rs ${saving.toFixed(2)}`,
-          text: `Your free allowance is about ${allowance.toFixed(1)} units a day and you averaged ${perDay.toFixed(1)}. You went ${over} units over. Cutting ${overPerDay.toFixed(1)} units a day is roughly ${Math.round(overPerDay / 1.5 * 60)} mins less of AC or ${Math.round(overPerDay / 2.0 * 60)} mins less of water heater each day. That avoids ~${Math.round(over * CO2_KG_PER_KWH)} kg of CO2.`,
-          saving_inr: saving
-        });
-      } else if (subsidy_units > 0) {
-        tips.push({
-          title: "You are inside your free limit",
-          text: `You used ${units_kwh} of ${subsidy_units} free units. Keep usage below the limit to keep the electricity charge at zero.`
-        });
-      } else if (units_kwh > 0) {
-        const cut = units_kwh * 0.10;
-        const netAtCut = clientComputeNetBill(units_kwh - cut, sanctioned_load_kw, subsidy_units, billing_days, fppcaSegments).net;
-        const saving = Math.round((recomputed - netAtCut) * 100) / 100;
-        tips.push({
-          title: `A 10% cut would save about Rs ${saving.toFixed(2)}`,
-          text: `Cutting ${Math.round(cut)} units (10%) saves roughly Rs ${saving.toFixed(2)} and about ${Math.round(cut * CO2_KG_PER_KWH)} kg of CO2. Start with high-draw appliances: AC, geysers, and standby power.`,
-          saving_inr: saving
-        });
-      }
-
-      if (md_penalty && md_penalty > 0) {
-        const peak = (recorded_md_kw && recorded_md_kw > sanctioned_load_kw)
-          ? `The meter recorded a peak of ${recorded_md_kw} kW, above your sanctioned load of ${sanctioned_load_kw} kW. ` : '';
-        tips.push({
-          title: `Peak-demand penalty of Rs ${md_penalty.toFixed(2)}`,
-          text: `This bill includes a penalty of Rs ${md_penalty.toFixed(2)}. ${peak}Avoid running multiple high-draw appliances simultaneously.`,
-          saving_inr: md_penalty
-        });
-      }
-
-      if (billing_days && billing_days > 45) {
-        tips.push({
-          title: "This is a multi-month bill",
-          text: `It covers ${billing_days} days, so the fixed charge and your free units are scaled up. Ask BESCOM to read your meter monthly.`
-        });
-      }
-
-      return {
-        recomputed,
-        billed,
-        variance,
-        flagged,
-        message,
-        notes,
-        coach: {
-          summary,
-          tips,
-          marginal_cost_per_unit: marginal,
-          gross: netRes.gross.total,
-          subsidy: netRes.subsidy ? netRes.subsidy.total : 0,
-          net: recomputed
-        },
-        breakdown: {
-          gross: netRes.gross,
-          subsidy: netRes.subsidy,
-          net: recomputed
-        }
-      };
-    }
-
-    // ==========================================
-    // NEURAL OCR PROCESSING (Image & PDF)
-    // ==========================================
-    async function extractTextFromImageOrPdf(file, onProgress) {
-      // PDF Parsing
-      if (file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')) {
-        if (!window.pdfjsLib) {
-          throw new Error('PDF reader engine is still initializing. Please re-try.');
-        }
-        onProgress('Rendering PDF page...', 15);
-        const arrayBuffer = await file.arrayBuffer();
-        const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-        const page = await pdf.getPage(1);
-        const viewport = page.getViewport({ scale: 2.2 });
-        const canvas = document.createElement('canvas');
-        canvas.width = viewport.width;
-        canvas.height = viewport.height;
-        const ctx = canvas.getContext('2d');
-        await page.render({ canvasContext: ctx, viewport }).promise;
-        return await runTesseractOnCanvas(canvas, onProgress);
-      }
-
-      // Image Parsing
-      onProgress('Loading bill image...', 15);
-      const img = new Image();
-      const url = URL.createObjectURL(file);
-      await new Promise((res, rej) => {
-        img.onload = res;
-        img.onerror = () => rej(new Error('Failed to read image data'));
-        img.src = url;
-      });
-      URL.revokeObjectURL(url);
-
-      onProgress('Enhancing image contrast & resolution...', 25);
-      const scale = Math.max(1, 1400 / img.width);
-      const canvas = document.createElement('canvas');
-      canvas.width = Math.round(img.width * scale);
-      canvas.height = Math.round(img.height * scale);
-      const ctx = canvas.getContext('2d');
-      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-
-      // Contrast enhancement & grayscale
-      const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-      const d = imgData.data;
-      for (let i = 0; i < d.length; i += 4) {
-        const gray = 0.299 * d[i] + 0.587 * d[i+1] + 0.114 * d[i+2];
-        d[i] = gray; d[i+1] = gray; d[i+2] = gray;
-      }
-      ctx.putImageData(imgData, 0, 0);
-
-      return await runTesseractOnCanvas(canvas, onProgress);
-    }
-
-    async function runTesseractOnCanvas(canvas, onProgress) {
-      if (!window.Tesseract) {
-        throw new Error('Neural OCR library is loading. Please verify internet connection.');
-      }
-      const result = await Tesseract.recognize(canvas, 'eng', {
-        logger: m => {
-          if (m.status === 'recognizing text') {
-            const pct = Math.round((m.progress || 0) * 100);
-            onProgress(`Scanning bill numbers (${pct}%)...`, pct);
-          } else if (m.status.includes('loading')) {
-            onProgress('Downloading OCR neural weights...', 30);
-          } else if (m.status.includes('initializing')) {
-            onProgress('Initializing OCR engine...', 40);
-          }
-        }
-      });
-      return result.data.text;
-    }
-
-    // Dark/Light Theme Handler
+    // Theme Handler
     const themeBtn = $('theme-toggle');
     const sunIcon = $('theme-sun'), moonIcon = $('theme-moon');
 
@@ -1061,9 +551,363 @@
       }
     });
 
-    // File Dropzone Handling
+    // ==========================================
+    // PARSER & OCR REGEX ENGINE
+    // ==========================================
+    function num(s) {
+      if (!s) return 0;
+      s = s.trim();
+      if (/,\d{2}$/.test(s)) {
+        s = s.slice(0, -3) + '.' + s.slice(-2);
+      }
+      return parseFloat(s.replace(/,/g, ''));
+    }
+
+    function firstMatch(patterns, text) {
+      for (const p of patterns) {
+        const m = text.match(p);
+        if (m) return m;
+      }
+      return null;
+    }
+
+    const MONEY_PAT = "(\\d[\\d,]*[.,]\\d{2})";
+    const QTY_PAT = "(\\d[\\d,]*\\.?\\d*)";
+
+    function parseBillText(text) {
+      const out = {};
+      const warnings = [];
+
+      // Billing period
+      const dateM = text.match(/(\d{2}\/\d{2}\/\d{4})\D{1,4}(\d{2}\/\d{2}\/\d{4})/);
+      if (dateM) {
+        out.billing_start = dateM[1];
+        out.billing_end = dateM[2];
+        try {
+          const p1 = dateM[1].split('/'), p2 = dateM[2].split('/');
+          const d1 = new Date(p1[2], p1[1] - 1, p1[0]);
+          const d2 = new Date(p2[2], p2[1] - 1, p2[0]);
+          const diffDays = Math.round((d2 - d1) / (1000 * 60 * 60 * 24));
+          if (diffDays > 0) out.billing_days = diffDays;
+        } catch (e) {}
+      }
+
+      // Units
+      const unitsM = firstMatch([new RegExp("Consumption\\s*\\(?Units\\)?\\D{0,8}" + QTY_PAT, "i")], text);
+      if (unitsM) out.units_kwh = num(unitsM[1]);
+
+      // Meter readings cross-check
+      const pres = firstMatch([/Pres\W+\w+\W+(\d{3,7})\b/i], text);
+      const prev = firstMatch([/Pr[eo][vw]\W+\w+\W+(\d{3,7})\b/i], text);
+      const constM = firstMatch([/Constant\D{0,4}(\d+)/i], text);
+      if (pres && prev && constM && parseInt(constM[1], 10) === 1) {
+        const pVal = parseInt(pres[1], 10), prVal = parseInt(prev[1], 10);
+        if (pVal > prVal) {
+          const diff = pVal - prVal;
+          if (out.units_kwh == null) {
+            out.units_kwh = diff;
+          } else if (Math.abs(out.units_kwh - diff) > 0.5) {
+            warnings.push(`Meter readings give ${diff} units. Using ${diff}.`);
+            out.units_kwh = diff;
+          }
+        }
+      }
+
+      // Sanctioned Load
+      const loadM = firstMatch([/Load\s*(\d+\.?\d*)\s*KW/i, /(\d+\.?\d*)\s*KW\s+\d+\.?\d*\s+\d+\.\d{2}/i], text);
+      if (loadM) out.sanctioned_load_kw = num(loadM[1]);
+
+      // Amount billed
+      const amtM = firstMatch([new RegExp("Am\\w{2,4}\\s*\\(\\s*\\w\\s*-\\s*\\w\\s*\\)\\s*" + MONEY_PAT, "i")], text);
+      if (amtM) {
+        out.amount_billed = num(amtM[1]);
+      } else {
+        const st1 = firstMatch([new RegExp("Sub-?\\s*Total-?\\s*1\\D{0,10}" + MONEY_PAT, "i")], text);
+        const st2 = firstMatch([new RegExp("Sub-?\\s*Total-?\\s*2\\D{0,10}" + MONEY_PAT, "i")], text);
+        if (st1 && st2) {
+          out.amount_billed = Math.round((num(st1[1]) - num(st2[1])) * 100) / 100;
+        } else if (st1) {
+          out.amount_billed = num(st1[1]);
+        }
+      }
+
+      // Recorded MD & Penalty
+      const rmd = firstMatch([/Recorded\s*M\w{1,2}\D{0,4}(\d+\.?\d*)/i], text);
+      if (rmd) out.recorded_md_kw = num(rmd[1]);
+
+      const pen = firstMatch([new RegExp("Load\\W{0,3}\\w{0,4}\\W{0,2}P[ea]n\\w*\\s*" + MONEY_PAT, "i")], text);
+      if (pen && num(pen[1]) > 0) out.md_penalty = num(pen[1]);
+
+      // Subsidy units
+      const subM = firstMatch([new RegExp("Eligible\\s*\\w{2,4}\\s*subsid\\w*\\D{0,4}" + QTY_PAT, "i")], text);
+      if (subM) {
+        out.subsidy_units = num(subM[1]);
+      } else {
+        const c = firstMatch([new RegExp("Un\\w{2,3}\\s*charge\\w*\\D{0,4}" + QTY_PAT, "i")], text);
+        const e = firstMatch([new RegExp("Entit\\S*\\s*Un\\w{2,3}\\D{0,4}" + QTY_PAT, "i")], text);
+        if (c && out.units_kwh != null && num(c[1]) <= out.units_kwh) {
+          out.subsidy_units = Math.round((out.units_kwh - num(c[1])) * 100) / 100;
+        } else if (e) {
+          const ent = num(e[1]);
+          const days = out.billing_days;
+          out.subsidy_units = days && days > 45 ? Math.round((ent * days / 30) * 100) / 100 : ent;
+        } else {
+          out.subsidy_units = 0.0;
+        }
+      }
+
+      out.warnings = warnings;
+      out.missing = ["units_kwh", "sanctioned_load_kw", "amount_billed"].filter(k => out[k] == null);
+      return out;
+    }
+
+    // ==========================================
+    // TARIFF ENGINE & SAVINGS COACH (BESCOM LT-1)
+    // ==========================================
+    function clientComputeBill(units, sanctionedLoadKw, billingDays, fppcaSegments) {
+      if (units < 0) throw new Error("Units must be >= 0");
+      const lineItems = [];
+      let energyTotal = 0;
+      let otherTotal = 0;
+
+      const multi = Boolean(billingDays && billingDays > 45);
+      const fixedRate = 150.0;
+      let fixedAmt = 0;
+      let billedKw = sanctionedLoadKw;
+      let label = "Fixed charges";
+
+      if (multi) {
+        fixedAmt = Math.round(fixedRate * sanctionedLoadKw * billingDays / 30 * 100) / 100;
+        billedKw = Math.round(sanctionedLoadKw * billingDays / 30 * 100) / 100;
+        label = `Fixed charges (${billingDays} days)`;
+      } else {
+        fixedAmt = Math.round(fixedRate * sanctionedLoadKw * 100) / 100;
+      }
+      lineItems.push({ type: "fixed", description: label, quantity: billedKw, rate: fixedRate, amount: fixedAmt });
+      otherTotal += fixedAmt;
+
+      // Energy charges (BESCOM LT-1 slab 5.80)
+      const energyAmt = Math.round(units * 5.80 * 100) / 100;
+      lineItems.push({ type: "energy", description: "Energy charges", quantity: units, rate: 5.80, amount: energyAmt });
+      energyTotal += energyAmt;
+
+      // FPPCA fuel adjustment
+      if (fppcaSegments && fppcaSegments.length > 0) {
+        const segTotal = fppcaSegments.reduce((acc, s) => acc + s[0], 0);
+        for (const [sUnits, sRate] of fppcaSegments) {
+          const part = Math.round(units * sUnits / segTotal * 100) / 100;
+          const amt = Math.round(part * sRate * 100) / 100;
+          lineItems.push({ type: "fuel_adj", description: `FPPCA charges @ ${sRate}`, quantity: part, rate: sRate, amount: amt });
+          otherTotal += amt;
+        }
+      } else {
+        const fppcaAmt = Math.round(units * -0.23 * 100) / 100;
+        lineItems.push({ type: "fuel_adj", description: "FPPCA charges", quantity: units, rate: -0.23, amount: fppcaAmt });
+        otherTotal += fppcaAmt;
+      }
+
+      // Surcharges
+      const pgAmt = Math.round(units * 0.35 * 100) / 100;
+      lineItems.push({ type: "surcharge", description: "P&G surcharge (GoK portion)", quantity: units, rate: 0.35, amount: pgAmt });
+      otherTotal += pgAmt;
+
+      // Electricity Tax (9% on energy)
+      const taxAmt = Math.round(energyTotal * 0.09 * 100) / 100;
+      lineItems.push({ type: "tax", description: "Tax @ 9% on energy", quantity: null, rate: 9.0, amount: taxAmt });
+
+      const total = Math.round((energyTotal + otherTotal + taxAmt) * 100) / 100;
+      return { units, lineItems, total, energyTotal, otherTotal, tax: taxAmt };
+    }
+
+    function clientComputeNetBill(units, loadKw, subsidyUnits = 0, billingDays = null, fppcaSegments = null) {
+      const gross = clientComputeBill(units, loadKw, billingDays, fppcaSegments);
+      if (subsidyUnits <= 0) return { gross, subsidy: null, net: gross.total };
+      const subUnits = Math.min(subsidyUnits, units);
+      const sub = clientComputeBill(subUnits, loadKw, billingDays, fppcaSegments);
+      return { gross, subsidy: sub, net: Math.round((gross.total - sub.total) * 100) / 100 };
+    }
+
+    function clientVerifyBill({ units_kwh, sanctioned_load_kw, amount_billed, subsidy_units = 0, billing_days = null, fppca = null, md_penalty = null, recorded_md_kw = null }) {
+      let fppcaSegments = null;
+      if (fppca && fppca.trim()) {
+        fppcaSegments = [];
+        for (const part of fppca.trim().split(/[,\s;]+/)) {
+          if (!part) continue;
+          const [u, r] = part.split('@');
+          if (u && r) fppcaSegments.push([parseFloat(u), parseFloat(r)]);
+        }
+      }
+
+      const netRes = clientComputeNetBill(units_kwh, sanctioned_load_kw, subsidy_units, billing_days, fppcaSegments);
+      const recomputed = netRes.net;
+      const billed = Math.round(amount_billed * 100) / 100;
+      const variance = Math.round((billed - recomputed) * 100) / 100;
+      const pct = recomputed ? (Math.abs(variance) / recomputed * 100) : (variance === 0 ? 0 : 100);
+      const flagged = Math.abs(variance) > 5.0 && pct > 1.0;
+
+      let message = "Bill matches the tariff within tolerance.";
+      if (flagged) {
+        message = variance > 0
+          ? `Possible overcharge of Rs ${variance.toFixed(2)} versus official tariff.`
+          : `Billed amount is Rs ${Math.abs(variance).toFixed(2)} lower than the tariff calculation.`;
+      }
+
+      const notes = [];
+      if (billing_days && billing_days > 45 && (!fppcaSegments || fppcaSegments.length === 0)) {
+        notes.push("Multi-month bill detected. Segmented FPPCA lines improve precision.");
+      }
+
+      // Savings Coach Calculations
+      const days = billing_days || 30;
+      const perDay = units_kwh / days;
+      const netNext = clientComputeNetBill(units_kwh + 1, sanctioned_load_kw, subsidy_units, billing_days, fppcaSegments).net;
+      const marginal = Math.max(0, Math.round((netNext - recomputed) * 100) / 100);
+
+      const summary = [`Usage: ${units_kwh} units over ${days} days (~${perDay.toFixed(1)} units/day).`];
+      if (subsidy_units > 0) {
+        const covered = Math.min(units_kwh, subsidy_units);
+        summary.push(`${covered} units credited under Gruha Jyothi subsidy.`);
+        summary.push(`Gross bill: Rs ${netRes.gross.total.toFixed(2)} | Subsidy credit: -Rs ${(netRes.subsidy ? netRes.subsidy.total : 0).toFixed(2)}.`);
+      }
+      if (marginal > 0) {
+        summary.push(`Each extra unit consumed costs ~Rs ${marginal.toFixed(2)}.`);
+      }
+
+      const tips = [];
+      if (flagged) {
+        tips.push({
+          title: "Billing Discrepancy Found",
+          text: `Variance of Rs ${Math.abs(variance).toFixed(2)} identified. Contact your local section office for itemized reading history.`
+        });
+      }
+
+      const CO2_KG_PER_KWH = 0.71;
+      if (subsidy_units > 0 && units_kwh > subsidy_units) {
+        const over = units_kwh - subsidy_units;
+        const netAtSub = clientComputeNetBill(subsidy_units, sanctioned_load_kw, subsidy_units, billing_days, fppcaSegments).net;
+        const saving = Math.round((recomputed - netAtSub) * 100) / 100;
+        tips.push({
+          title: `Stay Within Free Limit (Save ${rs(saving)})`,
+          text: `You exceeded your allowance by ${over} units. Trimming ~${(over/days).toFixed(1)} units/day saves ${rs(saving)} & cuts ${Math.round(over * CO2_KG_PER_KWH)} kg CO2.`,
+          saving_inr: saving
+        });
+      } else if (subsidy_units > 0) {
+        tips.push({
+          title: "Optimal Consumption",
+          text: `You stayed within your ${subsidy_units} free units. Net electricity charges remain fully covered.`
+        });
+      } else if (units_kwh > 0) {
+        const cut = units_kwh * 0.10;
+        const netAtCut = clientComputeNetBill(units_kwh - cut, sanctioned_load_kw, subsidy_units, billing_days, fppcaSegments).net;
+        const saving = Math.round((recomputed - netAtCut) * 100) / 100;
+        tips.push({
+          title: `10% Cut Saves ${rs(saving)}`,
+          text: `A 10% reduction (${Math.round(cut)} units) saves ~${rs(saving)} and reduces ${Math.round(cut * CO2_KG_PER_KWH)} kg CO2 emissions.`,
+          saving_inr: saving
+        });
+      }
+
+      if (md_penalty && md_penalty > 0) {
+        tips.push({
+          title: `Peak Penalty: ${rs(md_penalty)}`,
+          text: `Penalty of ${rs(md_penalty)} charged for exceeding sanctioned load. Avoid running heavy appliances simultaneously.`,
+          saving_inr: md_penalty
+        });
+      }
+
+      return {
+        recomputed,
+        billed,
+        variance,
+        flagged,
+        message,
+        notes,
+        coach: {
+          summary,
+          tips,
+          marginal_cost_per_unit: marginal,
+          gross: netRes.gross.total,
+          subsidy: netRes.subsidy ? netRes.subsidy.total : 0,
+          net: recomputed
+        },
+        breakdown: {
+          gross: netRes.gross,
+          subsidy: netRes.subsidy,
+          net: recomputed
+        }
+      };
+    }
+
+    // ==========================================
+    // NEURAL OCR SCANNER (Images & PDFs)
+    // ==========================================
+    async function extractTextFromImageOrPdf(file, onProgress) {
+      if (file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')) {
+        if (!window.pdfjsLib) throw new Error('PDF engine still initializing');
+        onProgress('Rendering PDF page...', 15);
+        const arrayBuffer = await file.arrayBuffer();
+        const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+        const page = await pdf.getPage(1);
+        const viewport = page.getViewport({ scale: 2.2 });
+        const canvas = document.createElement('canvas');
+        canvas.width = viewport.width;
+        canvas.height = viewport.height;
+        const ctx = canvas.getContext('2d');
+        await page.render({ canvasContext: ctx, viewport }).promise;
+        return await runTesseractOnCanvas(canvas, onProgress);
+      }
+
+      // Image
+      onProgress('Loading bill image...', 15);
+      const img = new Image();
+      const url = URL.createObjectURL(file);
+      await new Promise((res, rej) => {
+        img.onload = res;
+        img.onerror = () => rej(new Error('Failed to load image'));
+        img.src = url;
+      });
+      URL.revokeObjectURL(url);
+
+      onProgress('Enhancing image contrast...', 25);
+      const scale = Math.max(1, 1400 / img.width);
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.round(img.width * scale);
+      canvas.height = Math.round(img.height * scale);
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+
+      const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      const d = imgData.data;
+      for (let i = 0; i < d.length; i += 4) {
+        const gray = 0.299 * d[i] + 0.587 * d[i+1] + 0.114 * d[i+2];
+        d[i] = gray; d[i+1] = gray; d[i+2] = gray;
+      }
+      ctx.putImageData(imgData, 0, 0);
+
+      return await runTesseractOnCanvas(canvas, onProgress);
+    }
+
+    async function runTesseractOnCanvas(canvas, onProgress) {
+      if (!window.Tesseract) throw new Error('Neural OCR library loading. Please re-try.');
+      const result = await Tesseract.recognize(canvas, 'eng', {
+        logger: m => {
+          if (m.status === 'recognizing text') {
+            const pct = Math.round((m.progress || 0) * 100);
+            onProgress(`Scanning numbers (${pct}%)...`, pct);
+          } else if (m.status && m.status.includes('loading')) {
+            onProgress('Loading neural models...', 30);
+          }
+        }
+      });
+      return result.data.text;
+    }
+
+    // ==========================================
+    // DROPZONE & FILE INPUT HANDLERS
+    // ==========================================
     const dropzone = $('dropzone');
     const fileInput = $('file');
+    const btnBrowse = $('btn-browse');
     const dropzoneEmpty = $('dropzone-empty');
     const filePreviewCard = $('file-preview-card');
     const previewImg = $('preview-img');
@@ -1072,38 +916,55 @@
     const fileSizeEl = $('file-size');
     const btnRemoveFile = $('btn-remove-file');
 
-    dropzone.addEventListener('click', (e) => {
-      if (e.target.closest('#btn-remove-file')) return;
+    // 1. Explicit Browse Button Click
+    btnBrowse.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
       fileInput.click();
     });
 
-    ['dragenter', 'dragover'].forEach(name => {
-      dropzone.addEventListener(name, (e) => {
-        e.preventDefault();
-        dropzone.classList.add('border-brand-500', 'bg-brand-50/50', 'dark:bg-brand-950/20');
-      });
+    // 2. Click anywhere on Dropzone
+    dropzone.addEventListener('click', (e) => {
+      if (e.target.closest('#btn-remove-file') || e.target.closest('#btn-browse')) return;
+      fileInput.click();
     });
 
-    ['dragleave', 'drop'].forEach(name => {
-      dropzone.addEventListener(name, (e) => {
-        e.preventDefault();
-        dropzone.classList.remove('border-brand-500', 'bg-brand-50/50', 'dark:bg-brand-950/20');
-      });
-    });
-
-    dropzone.addEventListener('drop', (e) => {
-      if (e.dataTransfer.files && e.dataTransfer.files.length) {
-        handleFileSelect(e.dataTransfer.files[0]);
-      }
-    });
-
+    // 3. File Selected via Native Dialog
     fileInput.addEventListener('change', () => {
-      if (fileInput.files && fileInput.files.length) {
+      if (fileInput.files && fileInput.files.length > 0) {
         handleFileSelect(fileInput.files[0]);
       }
     });
 
+    // 4. Drag & Drop Visuals & Drop Listener
+    ['dragenter', 'dragover'].forEach(name => {
+      dropzone.addEventListener(name, (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        dropzone.classList.add('is-dragover');
+      });
+    });
+
+    ['dragleave', 'dragend'].forEach(name => {
+      dropzone.addEventListener(name, (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        dropzone.classList.remove('is-dragover');
+      });
+    });
+
+    dropzone.addEventListener('drop', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      dropzone.classList.remove('is-dragover');
+      if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+        handleFileSelect(e.dataTransfer.files[0]);
+      }
+    });
+
+    // 5. Remove Selected File
     btnRemoveFile.addEventListener('click', (e) => {
+      e.preventDefault();
       e.stopPropagation();
       resetFileInput();
     });
@@ -1151,14 +1012,13 @@
       }
     }
 
-    // OCR Scan Runner
+    // OCR Scan Execution
     async function triggerOcrScan(file) {
       const statusCard = $('ocr-status-card');
       const spinner = $('ocr-spinner');
       const icon = $('ocr-status-icon');
       const text = $('ocr-status-text');
       const missingChips = $('ocr-missing-chips');
-      const warnBox = $('ocr-warning-box');
       const progressContainer = $('ocr-progress-container');
       const progressBar = $('ocr-progress-bar');
       const rawDetails = $('ocr-raw-details');
@@ -1167,11 +1027,10 @@
       statusCard.classList.remove('hidden');
       spinner.classList.remove('hidden');
       icon.classList.add('hidden');
-      text.textContent = 'Initializing AI OCR scanner...';
-      if (progressContainer) progressContainer.classList.remove('hidden');
-      if (progressBar) progressBar.style.width = '8%';
+      text.textContent = 'Scanning bill with Neural OCR...';
+      progressContainer.classList.remove('hidden');
+      progressBar.style.width = '10%';
       missingChips.classList.add('hidden');
-      warnBox.classList.add('hidden');
       if (rawDetails) rawDetails.classList.add('hidden');
       clearOcrBadges();
 
@@ -1179,7 +1038,7 @@
         let d = null;
         let rawOcrText = '';
 
-        // 1. Check if backend /api/scan is actively available and returns genuine JSON
+        // Check if backend API /api/scan responds with JSON
         let backendSucceeded = false;
         try {
           const fd = new FormData();
@@ -1190,22 +1049,19 @@
             d = await probe.json();
             backendSucceeded = true;
           }
-        } catch (e) {
-          // Backend is either offline or static CDN rewrite returned HTML
-        }
+        } catch (e) {}
 
-        // 2. If backend is not available, execute browser-native Neural OCR
         if (!backendSucceeded) {
           rawOcrText = await extractTextFromImageOrPdf(file, (msg, pct) => {
             text.textContent = msg;
-            if (progressBar && pct != null) progressBar.style.width = `${Math.max(8, pct)}%`;
+            if (pct != null) progressBar.style.width = `${Math.max(10, pct)}%`;
           });
           d = parseBillText(rawOcrText);
         }
 
-        if (progressBar) progressBar.style.width = '100%';
+        progressBar.style.width = '100%';
 
-        // 3. Populate form fields
+        // Populate fields
         let filledCount = 0;
         if (d.sanctioned_load_kw != null) {
           $('load').value = d.sanctioned_load_kw;
@@ -1228,37 +1084,28 @@
         }
         if (d.billing_days != null) {
           $('days').value = d.billing_days;
-          if (d.billing_days > 45) {
-            $('advanced-details').open = true;
-          }
+          if (d.billing_days > 45) $('advanced-details').open = true;
         }
-        if (d.recorded_md_kw != null) {
-          $('recorded-md').value = d.recorded_md_kw;
-        }
+        if (d.recorded_md_kw != null) $('recorded-md').value = d.recorded_md_kw;
         if (d.md_penalty != null) {
           $('md-penalty').value = d.md_penalty;
           $('advanced-details').open = true;
         }
 
-        state.scanExtra = {
-          md_penalty: d.md_penalty,
-          recorded_md_kw: d.recorded_md_kw,
-        };
+        state.scanExtra = { md_penalty: d.md_penalty, recorded_md_kw: d.recorded_md_kw };
 
-        // Update UI
         spinner.classList.add('hidden');
         icon.classList.remove('hidden');
-        if (progressContainer) progressContainer.classList.add('hidden');
-        text.textContent = `Scanned successfully! Detected ${filledCount} field${filledCount === 1 ? '' : 's'} from bill.`;
+        progressContainer.classList.add('hidden');
+        text.textContent = `Scanned successfully! Found ${filledCount} field${filledCount === 1 ? '' : 's'}.`;
 
         if (rawOcrText && rawDetails && rawTextEl) {
           rawTextEl.textContent = rawOcrText.trim();
           rawDetails.classList.remove('hidden');
         }
 
-        // Missing fields notification
         if (d.missing && d.missing.length > 0) {
-          missingChips.innerHTML = '<span class="text-amber-600 dark:text-amber-400 font-semibold text-[11px]">Please verify or enter:</span>';
+          missingChips.innerHTML = '<span class="text-amber-600 dark:text-amber-400 font-semibold text-[11px]">Verify:</span>';
           d.missing.forEach(m => {
             const chip = document.createElement('span');
             chip.className = 'px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300 font-mono text-[10px]';
@@ -1268,18 +1115,12 @@
           missingChips.classList.remove('hidden');
         }
 
-        // Warnings notification
-        if (d.warnings && d.warnings.length > 0) {
-          warnBox.textContent = d.warnings.join(' • ');
-          warnBox.classList.remove('hidden');
-        }
-
-        showToast(`OCR successfully extracted ${filledCount} bill values!`, 'success');
+        showToast(`OCR extracted ${filledCount} bill values!`, 'success');
       } catch (err) {
         spinner.classList.add('hidden');
-        if (progressContainer) progressContainer.classList.add('hidden');
-        text.textContent = `OCR note: ${err.message}. Please verify numbers manually.`;
-        showToast('Photo scan was inconclusive. Please type in values directly.', 'warning');
+        progressContainer.classList.add('hidden');
+        text.textContent = `OCR note: ${err.message}. Please enter numbers directly.`;
+        showToast('Photo scan was inconclusive. Please type in values.', 'warning');
       }
     }
 
@@ -1295,7 +1136,7 @@
       $('md-penalty').value = '';
       state.scanExtra = {};
       clearOcrBadges();
-      showToast('Loaded Sample 1: Domestic 94 kWh (BESCOM Verified)', 'info');
+      showToast('Loaded 94 kWh Verified Bill', 'info');
       $('bill-form').dispatchEvent(new Event('submit'));
     });
 
@@ -1311,7 +1152,7 @@
       $('advanced-details').open = true;
       state.scanExtra = { md_penalty: 337.50, recorded_md_kw: 2.75 };
       clearOcrBadges();
-      showToast('Loaded Sample 2: Multi-Month 335 kWh (61 Days, FPPCA)', 'info');
+      showToast('Loaded 335 kWh Multi-Month Bill', 'info');
       $('bill-form').dispatchEvent(new Event('submit'));
     });
 
@@ -1326,7 +1167,7 @@
       $('md-penalty').value = '';
       state.scanExtra = {};
       clearOcrBadges();
-      showToast('Loaded Sample 3: Overcharged Utility Discrepancy Test', 'warning');
+      showToast('Loaded Discrepancy Sample', 'warning');
       $('bill-form').dispatchEvent(new Event('submit'));
     });
 
@@ -1369,7 +1210,6 @@
         } catch (e) {}
 
         if (backendAvailable) {
-          // Call backend API
           const premRes = await fetch(`/api/premises?label=Domestic&sanctioned_load_kw=${loadVal}`, { method: 'POST' });
           if (!premRes.ok) throw new Error('Could not initialize premises configuration');
           const premises = await premRes.json();
@@ -1402,7 +1242,7 @@
           }
           data = await verifyRes.json();
         } else {
-          // Execute Instant Client-Side Tariff Engine & Coach
+          // Instant Client-Side Tariff Engine
           data = clientVerifyBill({
             units_kwh: unitsVal,
             sanctioned_load_kw: loadVal,
@@ -1415,26 +1255,7 @@
           });
         }
 
-        renderResults(data, {
-          load: loadVal,
-          units: unitsVal,
-          amount: amountVal,
-          subsidy: subsidyVal,
-          days: daysVal,
-        });
-
-        showToast(data.flagged ? 'Tariff mismatch detected!' : 'Bill verified accurate!', data.flagged ? 'warning' : 'success');
-      } catch (err) {
-        showToast(err.message, 'error');
-      } finally {
-        state.isSubmitting = false;
-        submitBtn.disabled = false;
-        submitText.textContent = 'Verify Electricity Bill';
-        submitSpinner.classList.add('hidden');
-        submitIcon.classList.remove('hidden');
-      }
-    });
-
+        renderResults(data);
         showToast(data.flagged ? 'Tariff mismatch detected!' : 'Bill verified accurate!', data.flagged ? 'warning' : 'success');
       } catch (err) {
         showToast(err.message, 'error');
@@ -1448,7 +1269,7 @@
     });
 
     // Render Verification Results
-    function renderResults(data, params) {
+    function renderResults(data) {
       $('empty-state-card').classList.add('hidden');
       const resultsContainer = $('results-container');
       resultsContainer.classList.remove('hidden');
@@ -1467,32 +1288,32 @@
       const notesContainer = $('result-notes-container');
 
       if (!isFlagged) {
-        heroCard.className = 'rounded-2xl p-6 shadow-sm border bg-emerald-500/10 border-emerald-500/30 dark:bg-emerald-950/30 dark:border-emerald-800/60';
-        heroIcon.className = 'w-12 h-12 rounded-xl bg-emerald-500 text-white flex items-center justify-center shrink-0 shadow-md shadow-emerald-500/20';
+        heroCard.className = 'rounded-3xl p-6 glass shadow-lg border bg-emerald-500/10 border-emerald-500/30 dark:bg-emerald-950/20 dark:border-emerald-800/60';
+        heroIcon.className = 'w-12 h-12 rounded-2xl bg-gradient-to-tr from-emerald-500 to-brand-400 text-white flex items-center justify-center shrink-0 shadow-md shadow-emerald-500/20';
         heroIcon.innerHTML = '<svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>';
         heroTitle.textContent = 'Bill Verified Accurate';
-        heroTitle.className = 'text-lg font-bold text-emerald-900 dark:text-emerald-100';
-        heroDesc.textContent = data.message || 'The billed amount strictly aligns with regulatory tariff orders within tolerance.';
+        heroTitle.className = 'text-lg font-extrabold text-emerald-900 dark:text-emerald-100';
+        heroDesc.textContent = data.message || 'Billed amount matches the official tariff order within tolerance.';
         heroDesc.className = 'text-xs text-emerald-700 dark:text-emerald-300 mt-0.5';
 
-        heroPill.className = 'inline-flex items-center px-3.5 py-1.5 rounded-full font-mono text-xs font-bold shrink-0 bg-emerald-100 dark:bg-emerald-900 text-emerald-800 dark:text-emerald-200 border border-emerald-300 dark:border-emerald-700';
+        heroPill.className = 'inline-flex items-center px-3 py-1 rounded-full font-mono text-xs font-bold shrink-0 bg-emerald-100 dark:bg-emerald-900 text-emerald-800 dark:text-emerald-200 border border-emerald-300 dark:border-emerald-700';
         heroPill.textContent = '✓ 0.00% Variance';
       } else {
-        heroCard.className = 'rounded-2xl p-6 shadow-sm border bg-amber-500/10 border-amber-500/30 dark:bg-amber-950/30 dark:border-amber-800/60';
-        heroIcon.className = 'w-12 h-12 rounded-xl bg-amber-500 text-white flex items-center justify-center shrink-0 shadow-md shadow-amber-500/20';
+        heroCard.className = 'rounded-3xl p-6 glass shadow-lg border bg-amber-500/10 border-amber-500/30 dark:bg-amber-950/20 dark:border-amber-800/60';
+        heroIcon.className = 'w-12 h-12 rounded-2xl bg-gradient-to-tr from-amber-500 to-orange-400 text-white flex items-center justify-center shrink-0 shadow-md shadow-amber-500/20';
         heroIcon.innerHTML = '<svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>';
-        heroTitle.textContent = variance > 0 ? 'Possible Utility Overcharge Detected' : 'Undercharge / Discrepancy Detected';
-        heroTitle.className = 'text-lg font-bold text-amber-900 dark:text-amber-100';
+        heroTitle.textContent = variance > 0 ? 'Possible Utility Overcharge' : 'Undercharge / Discrepancy';
+        heroTitle.className = 'text-lg font-extrabold text-amber-900 dark:text-amber-100';
         heroDesc.textContent = data.message || 'There is a discrepancy between the billed amount and official tariff calculation.';
         heroDesc.className = 'text-xs text-amber-700 dark:text-amber-300 mt-0.5';
 
-        heroPill.className = 'inline-flex items-center px-3.5 py-1.5 rounded-full font-mono text-xs font-bold shrink-0 bg-amber-100 dark:bg-amber-900 text-amber-800 dark:text-amber-200 border border-amber-300 dark:border-amber-700';
-        heroPill.textContent = (variance > 0 ? '+' : '') + rs(variance) + ' Discrepancy';
+        heroPill.className = 'inline-flex items-center px-3 py-1 rounded-full font-mono text-xs font-bold shrink-0 bg-amber-100 dark:bg-amber-900 text-amber-800 dark:text-amber-200 border border-amber-300 dark:border-amber-700';
+        heroPill.textContent = (variance > 0 ? '+' : '') + rs(variance) + ' Gap';
       }
 
       // Notes
       if (data.notes && data.notes.length > 0) {
-        notesContainer.innerHTML = data.notes.map(n => `<div class="text-slate-600 dark:text-slate-300 flex items-start gap-1.5"><span class="text-amber-500 font-bold">•</span><span>${esc(n)}</span></div>`).join('');
+        notesContainer.innerHTML = data.notes.map(n => `<div class="flex items-center gap-1.5"><span class="text-amber-500 font-bold">•</span><span>${esc(n)}</span></div>`).join('');
         notesContainer.classList.remove('hidden');
       } else {
         notesContainer.classList.add('hidden');
@@ -1503,12 +1324,8 @@
       $('metric-recomputed').textContent = Number(recomputed).toFixed(2);
       
       const metricVarianceEl = $('metric-variance');
-      metricVarianceEl.textContent = Number(Math.abs(variance)).toFixed(2);
-      metricVarianceEl.className = `text-2xl font-extrabold font-mono ${isFlagged ? (variance > 0 ? 'text-red-500' : 'text-amber-500') : 'text-emerald-500'}`;
-      
-      $('metric-variance-note').textContent = isFlagged 
-        ? (variance > 0 ? `Overcharge (+${((variance / (recomputed || 1)) * 100).toFixed(1)}%)` : `Undercharge (-${((Math.abs(variance) / (recomputed || 1)) * 100).toFixed(1)}%)`)
-        : 'Exact tariff match (0.00%)';
+      metricVarianceEl.textContent = (variance > 0 ? '+' : '') + rs(variance);
+      metricVarianceEl.className = `text-xl sm:text-2xl font-extrabold font-mono mt-1 ${isFlagged ? (variance > 0 ? 'text-red-500' : 'text-amber-500') : 'text-emerald-500'}`;
 
       // 3. Itemized Tariff Breakdown
       const tbody = $('breakdown-tbody');
@@ -1517,13 +1334,9 @@
       if (data.breakdown && data.breakdown.gross && data.breakdown.gross.line_items) {
         data.breakdown.gross.line_items.forEach(item => {
           const tr = document.createElement('tr');
-          const isTotal = item.type === 'total';
-          tr.className = isTotal ? 'font-bold bg-slate-50/50 dark:bg-slate-800/40 text-slate-900 dark:text-white' : 'hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition';
+          tr.className = 'hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition';
           tr.innerHTML = `
-            <td class="py-2.5 pr-4">
-              <span class="font-medium text-slate-800 dark:text-slate-200">${esc(item.description)}</span>
-              <span class="text-[10px] text-slate-400 block font-mono capitalize">${esc(item.type)}</span>
-            </td>
+            <td class="py-2.5 pr-4 font-medium text-slate-800 dark:text-slate-200">${esc(item.description)}</td>
             <td class="py-2.5 px-3 text-right font-mono text-slate-600 dark:text-slate-400">${item.quantity != null ? Number(item.quantity).toFixed(2) : '—'}</td>
             <td class="py-2.5 px-3 text-right font-mono text-slate-600 dark:text-slate-400">${item.rate != null ? '₹' + Number(item.rate).toFixed(2) : '—'}</td>
             <td class="py-2.5 pl-4 text-right font-mono font-bold text-slate-900 dark:text-white">${rs(item.amount)}</td>
@@ -1531,11 +1344,11 @@
           tbody.appendChild(tr);
         });
 
-        // Add Gross Subtotal Row
+        // Gross Subtotal Row
         const grossTr = document.createElement('tr');
-        grossTr.className = 'font-bold bg-slate-50 dark:bg-slate-800/50 border-t border-slate-200 dark:border-slate-700';
+        grossTr.className = 'font-bold bg-slate-50/80 dark:bg-slate-800/50 border-t border-slate-200 dark:border-slate-700';
         grossTr.innerHTML = `
-          <td colspan="3" class="py-2.5 pr-4 text-slate-700 dark:text-slate-300">Gross Tariff Total (before subsidy)</td>
+          <td colspan="3" class="py-2.5 pr-4 text-slate-700 dark:text-slate-300">Gross Tariff Total</td>
           <td class="py-2.5 pl-4 text-right font-mono font-extrabold text-slate-900 dark:text-white">${rs(data.breakdown.gross.total)}</td>
         `;
         tbody.appendChild(grossTr);
@@ -1546,7 +1359,7 @@
       if (data.breakdown && data.breakdown.subsidy && data.breakdown.subsidy.total > 0) {
         subsidyBox.classList.remove('hidden');
         $('subsidy-breakdown-total').textContent = `- ${rs(data.breakdown.subsidy.total)}`;
-        $('subsidy-breakdown-text').textContent = `Full subsidy bill credit on ${data.breakdown.subsidy.units} eligible units deducted under Karnataka Gruha Jyothi scheme, leaving Net Recomputed payable of ${rs(data.recomputed)}.`;
+        $('subsidy-breakdown-text').textContent = `Full subsidy bill credit on ${data.breakdown.subsidy.units} eligible units deducted under Karnataka Gruha Jyothi scheme.`;
       } else {
         subsidyBox.classList.add('hidden');
       }
@@ -1566,7 +1379,6 @@
           marginalPill.classList.add('hidden');
         }
 
-        // Summary statements
         summaryBox.innerHTML = (coach.summary || []).map(s => `
           <div class="flex items-start gap-2">
             <span class="text-brand-500 font-bold shrink-0">▸</span>
@@ -1574,9 +1386,8 @@
           </div>
         `).join('');
 
-        // Actionable Tips
         tipsGrid.innerHTML = (coach.tips || []).map(tip => `
-          <div class="p-3.5 rounded-xl bg-slate-50/80 dark:bg-slate-800/50 border border-slate-200/80 dark:border-slate-700/60 flex flex-col justify-between">
+          <div class="p-3.5 rounded-2xl bg-slate-50/80 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700/60 flex flex-col justify-between hover:border-brand-500/50 transition">
             <div>
               <div class="flex items-start justify-between gap-2 mb-1.5">
                 <h4 class="text-xs font-bold text-slate-900 dark:text-slate-100">${esc(tip.title)}</h4>
@@ -1588,24 +1399,8 @@
         `).join('');
       }
 
-      // Scroll smoothly to results
+      // Scroll to results
       resultsContainer.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    }
-
-    function resetApp() {
-      resetFileInput();
-      $('units').value = '';
-      $('amount').value = '';
-      $('subsidy').value = '0';
-      $('days').value = '';
-      $('fppca').value = '';
-      $('recorded-md').value = '';
-      $('md-penalty').value = '';
-      $('advanced-details').open = false;
-      state.scanExtra = {};
-      $('results-container').classList.add('hidden');
-      $('empty-state-card').classList.remove('hidden');
-      window.scrollTo({ top: 0, behavior: 'smooth' });
     }
   </script>
 </body>
